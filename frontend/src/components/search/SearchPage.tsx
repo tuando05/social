@@ -1,8 +1,11 @@
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Search } from "lucide-react"
+import { Search, Loader2 } from "lucide-react"
+import { useQuery } from "@tanstack/react-query"
+import { useApi } from "@/hooks/useApi"
+import type { User } from "@/types/api"
 
 type SearchTab = "suggested" | "trending" | "people"
 
@@ -12,33 +15,17 @@ const SEARCH_TABS: { key: SearchTab; label: string }[] = [
   { key: "people",    label: "Tài khoản" },
 ]
 
-const SUGGESTED_USERS = [
-  { id: "1", name: "Nguyễn Văn A", username: "nguyenvana", avatar: "https://i.pravatar.cc/150?u=u1", followers: "12,4K" },
-  { id: "2", name: "Trần Thị B",   username: "tranthib",   avatar: "https://i.pravatar.cc/150?u=u2", followers: "8,2K"  },
-  { id: "3", name: "Lê Minh C",    username: "leminhc",    avatar: "https://i.pravatar.cc/150?u=u3", followers: "34,1K" },
-  { id: "4", name: "Phạm Thu D",   username: "phamthud",   avatar: "https://i.pravatar.cc/150?u=u4", followers: "5,7K"  },
-  { id: "5", name: "Hoàng Anh E",  username: "hoanganhe",  avatar: "https://i.pravatar.cc/150?u=u5", followers: "21,9K" },
-]
+// Mock data removed
 
-const TRENDING = [
-  { tag: "Vietnam",     posts: "24,5K bài viết" },
-  { tag: "ThreadsClone",posts: "8,1K bài viết"  },
-  { tag: "ReactJS",     posts: "15,3K bài viết" },
-  { tag: "TechViet",    posts: "6,9K bài viết"  },
-  { tag: "DevLife",     posts: "11,2K bài viết" },
-  { tag: "OpenSource",  posts: "9,4K bài viết"  },
-]
-
-const ALL_PEOPLE = [
-  ...SUGGESTED_USERS,
-  { id: "6", name: "Minh Khoa F",  username: "minhkhoaf",  avatar: "https://i.pravatar.cc/150?u=u6", followers: "3,1K" },
-  { id: "7", name: "Thanh Tâm G",  username: "thanhtamg",  avatar: "https://i.pravatar.cc/150?u=u7", followers: "7,8K" },
-]
+// Removed ALL_PEOPLE since it's now fetching from API
 
 export function SearchPage() {
   const [query, setQuery]       = useState("")
   const [activeTab, setActiveTab] = useState<SearchTab>("suggested")
   const [followed, setFollowed] = useState<Set<string>>(new Set())
+
+  const { apiFetch } = useApi()
+  const [debouncedQuery, setDebouncedQuery] = useState(query)
 
   const toggleFollow = (id: string) => {
     setFollowed(prev => {
@@ -48,10 +35,22 @@ export function SearchPage() {
     })
   }
 
-  const filteredPeople = ALL_PEOPLE.filter(u =>
-    u.name.toLowerCase().includes(query.toLowerCase()) ||
-    u.username.toLowerCase().includes(query.toLowerCase())
-  )
+  // Debounce query
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedQuery(query)
+    }, 500)
+    return () => clearTimeout(handler)
+  }, [query])
+
+  const { data: searchResults, isLoading } = useQuery<{ users: User[] }>({
+    queryKey: ["search", debouncedQuery],
+    queryFn: () => apiFetch(`/api/search?q=${encodeURIComponent(debouncedQuery)}&type=users`),
+    enabled: true,
+  })
+
+  // Determine what to show in tabs (suggested/people)
+  const usersToDisplay = searchResults?.users || [] 
 
   return (
     <div className="flex flex-col w-full">
@@ -89,18 +88,24 @@ export function SearchPage() {
 
       {/* Content */}
       <div className="flex flex-col divide-y divide-border/40">
-        {(activeTab === "suggested" ? SUGGESTED_USERS : activeTab === "people" ? filteredPeople : []).map(user => (
+        {isLoading && (
+          <div className="flex justify-center py-10">
+            <Loader2 className="animate-spin text-muted-foreground" size={24} />
+          </div>
+        )}
+
+        {!isLoading && activeTab !== "trending" && usersToDisplay.map(user => (
           <div
             key={user.id}
             className="flex items-center gap-3 px-4 py-3.5 hover:bg-muted/15 transition-colors"
           >
             <Avatar className="w-10 h-10 shrink-0">
-              <AvatarImage src={user.avatar} />
-              <AvatarFallback>{user.name[0]}</AvatarFallback>
+              <AvatarImage src={user.imageUrl || undefined} />
+              <AvatarFallback>{user.displayName?.[0] || user.username[0]}</AvatarFallback>
             </Avatar>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold leading-tight truncate">{user.name}</p>
-              <p className="text-xs text-muted-foreground truncate">@{user.username} · {user.followers} người theo dõi</p>
+              <p className="text-sm font-semibold leading-tight truncate">{user.displayName || user.username}</p>
+              <p className="text-xs text-muted-foreground truncate">@{user.username} {user.followerCount > 0 ? `· ${user.followerCount} người theo dõi` : ""}</p>
             </div>
             <Button
               size="sm"
@@ -112,18 +117,16 @@ export function SearchPage() {
             </Button>
           </div>
         ))}
-
-        {activeTab === "trending" && TRENDING.map(item => (
-          <div
-            key={item.tag}
-            className="flex items-center justify-between px-4 py-3.5 hover:bg-muted/15 transition-colors cursor-pointer"
-          >
-            <div>
-              <p className="text-sm font-semibold">#{item.tag}</p>
-              <p className="text-xs text-muted-foreground mt-0.5">{item.posts}</p>
-            </div>
+        
+        {!isLoading && activeTab !== "trending" && usersToDisplay.length === 0 && (
+          <div className="text-center py-10 text-muted-foreground text-sm">
+            Không tìm thấy người dùng nào
           </div>
-        ))}
+        )}
+
+        {activeTab === "trending" && (
+          <div className="text-center py-10 text-muted-foreground text-sm"> Tính năng Đang được phát triển </div>
+        )}
 
         <div className="h-16" />
       </div>

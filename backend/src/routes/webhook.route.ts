@@ -44,15 +44,25 @@ router.post(
     const eventType = evt.type;
 
     if (eventType === "user.created") {
-      const { id, email_addresses, username } = evt.data;
+      const { id, email_addresses, username, image_url, first_name, last_name } = evt.data;
       const primaryEmail = email_addresses[0]?.email_address;
+      const displayName = [first_name, last_name].filter(Boolean).join(" ");
 
       try {
-        await prisma.user.create({
-          data: {
+        await prisma.user.upsert({
+          where: { id },
+          create: {
             id,
-            email: primaryEmail,
-            username: username || "",
+            email: primaryEmail || `${id}@clerk.local`,
+            username: username || null,
+            imageUrl: image_url || null,
+            displayName: displayName || null,
+          },
+          update: {
+            email: primaryEmail || `${id}@clerk.local`,
+            username: username || null,
+            imageUrl: image_url || null,
+            displayName: displayName || null,
           },
         });
         console.log(`User ${id} created in database`);
@@ -63,13 +73,25 @@ router.post(
     }
 
     if (eventType === "user.updated") {
-      const { id, username } = evt.data;
+      const { id, email_addresses, username, image_url, first_name, last_name } = evt.data;
+      const primaryEmail = email_addresses[0]?.email_address;
+      const displayName = [first_name, last_name].filter(Boolean).join(" ");
 
       try {
-        await prisma.user.update({
+        await prisma.user.upsert({
           where: { id },
-          data: {
-            username: username || "",
+          create: {
+            id,
+            email: primaryEmail || `${id}@clerk.local`,
+            username: username || null,
+            imageUrl: image_url || null,
+            displayName: displayName || null,
+          },
+          update: {
+            email: primaryEmail || `${id}@clerk.local`,
+            username: username || null,
+            imageUrl: image_url || null,
+            displayName: displayName || null,
           },
         });
         console.log(`User ${id} updated in database`);

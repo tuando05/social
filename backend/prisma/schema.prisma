@@ -6,10 +6,109 @@ datasource db {
   provider = "postgresql"
 }
 
+enum NotificationType {
+  FOLLOW
+  LIKE_POST
+  LIKE_COMMENT
+  COMMENT
+}
+
 model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  username  String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id                    String         @id
+  email                 String         @unique
+  username              String?        @unique
+  displayName           String?
+  bio                   String?
+  imageUrl              String?
+  createdAt             DateTime       @default(now())
+  updatedAt             DateTime       @updatedAt
+  posts                 Post[]
+  comments              Comment[]
+  likes                 Like[]
+  followers             Follow[]       @relation("followers")
+  following             Follow[]       @relation("following")
+  notificationsReceived Notification[] @relation("notificationRecipient")
+  notificationsTriggered Notification[] @relation("notificationActor")
+}
+
+model Post {
+  id           String         @id @default(cuid())
+  authorId     String
+  content      String
+  imageUrls    String[]       @default([])
+  commentCount Int            @default(0)
+  likeCount    Int            @default(0)
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+  author       User           @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  comments     Comment[]
+  likes        Like[]         @relation("PostLikes")
+  notifications Notification[]
+
+  @@index([createdAt(sort: Desc)])
+  @@index([authorId, createdAt(sort: Desc)])
+}
+
+model Comment {
+  id            String         @id @default(cuid())
+  postId        String
+  authorId      String
+  content       String
+  parentId      String?
+  likeCount     Int            @default(0)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  post          Post           @relation(fields: [postId], references: [id], onDelete: Cascade)
+  author        User           @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  parent        Comment?       @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies       Comment[]      @relation("CommentReplies")
+  likes         Like[]         @relation("CommentLikes")
+  notifications Notification[]
+
+  @@index([postId, createdAt(sort: Desc)])
+  @@index([authorId, createdAt(sort: Desc)])
+}
+
+model Like {
+  id        String    @id @default(cuid())
+  userId    String
+  postId    String?
+  commentId String?
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post      Post?     @relation("PostLikes", fields: [postId], references: [id], onDelete: Cascade)
+  comment   Comment?  @relation("CommentLikes", fields: [commentId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, postId])
+  @@unique([userId, commentId])
+  @@index([postId])
+  @@index([commentId])
+}
+
+model Follow {
+  followerId  String
+  followingId String
+  createdAt   DateTime @default(now())
+  follower    User     @relation("following", fields: [followerId], references: [id], onDelete: Cascade)
+  following   User     @relation("followers", fields: [followingId], references: [id], onDelete: Cascade)
+
+  @@id([followerId, followingId])
+  @@index([followingId, createdAt(sort: Desc)])
+}
+
+model Notification {
+  id          String           @id @default(cuid())
+  recipientId String
+  actorId     String
+  type        NotificationType
+  postId      String?
+  commentId   String?
+  isRead      Boolean          @default(false)
+  createdAt   DateTime         @default(now())
+  recipient   User             @relation("notificationRecipient", fields: [recipientId], references: [id], onDelete: Cascade)
+  actor       User             @relation("notificationActor", fields: [actorId], references: [id], onDelete: Cascade)
+  post        Post?            @relation(fields: [postId], references: [id], onDelete: Cascade)
+  comment     Comment?         @relation(fields: [commentId], references: [id], onDelete: Cascade)
+
+  @@index([recipientId, isRead, createdAt(sort: Desc)])
 }

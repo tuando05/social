@@ -1,62 +1,71 @@
+import { useQuery } from "@tanstack/react-query"
+import { useApi } from "@/hooks/useApi"
+import type { PaginatedResponse, Notification } from "@/types/api"
+import { Loader2 } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 
 type FilterKey = "all" | "replies" | "mentions" | "follows" | "requests"
-
-interface Notification {
-  id: string
-  avatar: string
-  name: string
-  content: string
-  time: string
-  isRead: boolean
-}
-
-const DATA: Record<FilterKey, Notification[]> = {
-  all: [
-    { id: "a1", avatar: "https://i.pravatar.cc/150?u=n1", name: "Minh Tú",    content: "đã thích bài viết của bạn.",                  time: "2 giờ trước",   isRead: false },
-    { id: "a2", avatar: "https://i.pravatar.cc/150?u=n2", name: "Hoa Linh",   content: "bắt đầu theo dõi bạn.",                       time: "4 giờ trước",   isRead: false },
-    { id: "a3", avatar: "https://i.pravatar.cc/150?u=n3", name: "Kiên Trần",  content: "đã chia sẻ lại bài của bạn.",                 time: "1 ngày trước",  isRead: true  },
-    { id: "a4", avatar: "https://i.pravatar.cc/150?u=n4", name: "Thu Hà",     content: "đã thích bình luận của bạn.",                 time: "2 ngày trước",  isRead: true  },
-    { id: "a5", avatar: "https://i.pravatar.cc/150?u=n5", name: "Bảo Nam",    content: "đã nhắc đến bạn trong một chủ đề.",           time: "3 ngày trước",  isRead: true  },
-  ],
-  replies: [
-    { id: "r1", avatar: "https://i.pravatar.cc/150?u=n6", name: "Lan Anh",    content: "đã trả lời: \"Tuyệt vời quá! 🔥\"",           time: "1 giờ trước",   isRead: false },
-    { id: "r2", avatar: "https://i.pravatar.cc/150?u=n7", name: "Đức Huy",    content: "đã trả lời: \"Mình đồng ý quan điểm này.\"",  time: "5 giờ trước",   isRead: false },
-    { id: "r3", avatar: "https://i.pravatar.cc/150?u=n8", name: "Yến Nhi",    content: "đã trả lời: \"Có thể giải thích thêm không?\"",time: "1 ngày trước",  isRead: true  },
-    { id: "r4", avatar: "https://i.pravatar.cc/150?u=n9", name: "Quang Vinh", content: "đã trả lời bình luận của bạn.",               time: "2 ngày trước",  isRead: true  },
-    { id: "r5", avatar: "https://i.pravatar.cc/150?u=na", name: "Mai Phương", content: "đã trả lời: \"Cảm ơn bạn 🙏\"",              time: "4 ngày trước",  isRead: true  },
-  ],
-  mentions: [
-    { id: "m1", avatar: "https://i.pravatar.cc/150?u=nb", name: "Gia Bảo",    content: "đã nhắc đến bạn: \"...chúc mừng @you!\"",    time: "3 giờ trước",   isRead: false },
-    { id: "m2", avatar: "https://i.pravatar.cc/150?u=nc", name: "Thùy Dương", content: "đã tag bạn trong một bài viết.",              time: "8 giờ trước",   isRead: true  },
-    { id: "m3", avatar: "https://i.pravatar.cc/150?u=nd", name: "Nhật Hào",   content: "đã nhắc đến bạn trong chủ đề trending.",     time: "1 ngày trước",  isRead: true  },
-    { id: "m4", avatar: "https://i.pravatar.cc/150?u=ne", name: "Diệu Linh",  content: "đã tag bạn: \"Bạn nghĩ sao @you?\"",          time: "3 ngày trước",  isRead: true  },
-    { id: "m5", avatar: "https://i.pravatar.cc/150?u=nf", name: "Hoàng Long", content: "nhắc tên bạn trong một cuộc trò chuyện.",    time: "5 ngày trước",  isRead: true  },
-  ],
-  follows: [
-    { id: "f1", avatar: "https://i.pravatar.cc/150?u=ng", name: "Trúc Lâm",   content: "bắt đầu theo dõi bạn.",                      time: "30 phút trước", isRead: false },
-    { id: "f2", avatar: "https://i.pravatar.cc/150?u=nh", name: "Phú Tài",    content: "bắt đầu theo dõi bạn.",                      time: "2 giờ trước",   isRead: false },
-    { id: "f3", avatar: "https://i.pravatar.cc/150?u=ni", name: "Thu Thảo",   content: "bắt đầu theo dõi bạn.",                      time: "1 ngày trước",  isRead: true  },
-    { id: "f4", avatar: "https://i.pravatar.cc/150?u=nj", name: "Bình An",    content: "bắt đầu theo dõi bạn.",                      time: "4 ngày trước",  isRead: true  },
-    { id: "f5", avatar: "https://i.pravatar.cc/150?u=nk", name: "Vy Nguyễn",  content: "bắt đầu theo dõi bạn.",                      time: "1 tuần trước",  isRead: true  },
-  ],
-  requests: [
-    { id: "q1", avatar: "https://i.pravatar.cc/150?u=nl", name: "Ẩn danh",    content: "muốn theo dõi bạn. Bạn có muốn chấp nhận?",  time: "1 giờ trước",   isRead: false },
-    { id: "q2", avatar: "https://i.pravatar.cc/150?u=nm", name: "user_9821",  content: "gửi yêu cầu theo dõi tài khoản của bạn.",    time: "3 giờ trước",   isRead: true  },
-    { id: "q3", avatar: "https://i.pravatar.cc/150?u=nn", name: "new_acc_23", content: "muốn theo dõi bạn.",                          time: "1 ngày trước",  isRead: true  },
-  ],
-}
 
 interface NotificationsPageProps {
   activeFilter?: string
 }
 
 export function NotificationsPage({ activeFilter = "all" }: NotificationsPageProps) {
-  const items = DATA[activeFilter as FilterKey] ?? DATA.all
+  const { apiFetch } = useApi()
+
+  const { data, isLoading } = useQuery<PaginatedResponse<Notification>>({
+    queryKey: ["notifications"],
+    queryFn: () => apiFetch("/api/notifications"),
+  })
+
+  const notifications = data?.data || []
+
+  // Map backend notifications to the UI
+  const formattedItems = notifications.map(n => {
+    let content = "đã tương tác với bạn."
+    if (n.type === "LIKE_POST") content = "đã thích bài viết của bạn."
+    if (n.type === "LIKE_COMMENT") content = "đã thích bình luận của bạn."
+    if (n.type === "COMMENT") content = "đã bình luận bài viết của bạn."
+    if (n.type === "FOLLOW") content = "bắt đầu theo dõi bạn."
+    if (n.type === "MENTION") content = "đã nhắc đến bạn."
+
+    // Dummy categorization for the UI tabs since backend doesn't have exact categories yet
+    let category: FilterKey = "all"
+    if (n.type === "COMMENT") category = "replies"
+    if (n.type === "MENTION") category = "mentions"
+    if (n.type === "FOLLOW") category = "follows"
+    
+    return {
+      id: n.id,
+      avatar: n.actor?.imageUrl || "",
+      name: n.actor?.displayName || n.actor?.username || "Ẩn danh",
+      content,
+      time: new Date(n.createdAt).toLocaleDateString(),
+      isRead: n.isRead,
+      category,
+      originalType: n.type
+    }
+  })
+
+  const items = activeFilter === "all" 
+    ? formattedItems 
+    : formattedItems.filter(i => i.category === activeFilter || (activeFilter === "requests" && i.originalType === "FOLLOW_REQUEST"))
 
   return (
     <div className="flex flex-col w-full">
       <div className="flex flex-col divide-y divide-border/40">
+        {isLoading && (
+          <div className="flex justify-center py-10">
+            <Loader2 className="animate-spin text-muted-foreground" size={24} />
+          </div>
+        )}
+
+        {!isLoading && items.length === 0 && (
+          <div className="text-center py-10 text-muted-foreground text-sm">
+            Bạn chưa có thông báo nào.
+          </div>
+        )}
+
         {items.map(item => (
           <div
             key={item.id}
