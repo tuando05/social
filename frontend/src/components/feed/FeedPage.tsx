@@ -1,26 +1,10 @@
-import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { PostCard } from "./PostCard"
-
-const MOCK_POSTS = [
-  {
-    id: "1",
-    author: { name: "dev.ly", username: "dev.ly", avatar: "https://i.pravatar.cc/150?u=a042581f4e29026704d", isVerified: true },
-    content: "Hello Threads! This is my first post on this beautiful platform. Testing the layout flexibility.",
-    timestamp: "2h", likes: 42, comments: 5, hasReply: true
-  },
-  {
-    id: "2",
-    author: { name: "Zuck", username: "zuck", avatar: "https://i.pravatar.cc/150?u=a042581f4e29026024d", isVerified: true },
-    content: "Just another great day to connect people.\n\nHere is a multiline post to test how the thread line scales with the content length.",
-    timestamp: "5h", likes: 10423, comments: 942, hasReply: false
-  },
-  {
-    id: "3",
-    author: { name: "anonymous", username: "anon", avatar: "https://i.pravatar.cc/150?u=a042581f4e29026702d", isVerified: false },
-    content: "Can't wait to see how this UI scales with more content! 🚀\nScrolling should be buttery smooth.",
-    timestamp: "12h", likes: 12, comments: 1, hasReply: false
-  }
-]
+import { useQuery } from "@tanstack/react-query"
+import { useApi } from "@/hooks/useApi"
+import type { PaginatedResponse, Post } from "@/types/api"
+import { Loader2 } from "lucide-react"
+import { useUser } from "@clerk/clerk-react"
 
 interface FeedPageProps {
   onOpenPost: () => void
@@ -28,6 +12,15 @@ interface FeedPageProps {
 }
 
 export function FeedPage({ onOpenPost, activeFilter }: FeedPageProps) {
+  const { apiFetch } = useApi()
+  const { user } = useUser()
+
+  const { data, isLoading } = useQuery<PaginatedResponse<Post>>({
+    queryKey: ["posts", "feed", activeFilter],
+    queryFn: () => apiFetch("/api/posts/feed"), // we will just use feed endpoint for all filters for now as a demo
+  })
+
+  const posts = data?.data || []
   return (
     <div className="flex flex-col h-full w-full">
       {/* Inline Create Post Trigger */}
@@ -36,7 +29,8 @@ export function FeedPage({ onOpenPost, activeFilter }: FeedPageProps) {
         className="flex items-center gap-4 px-6 py-4 border-b border-border/50 cursor-pointer hover:bg-muted/10 transition-colors"
       >
         <Avatar className="w-10 h-10 border-2 border-border">
-          <AvatarFallback>U</AvatarFallback>
+          <AvatarImage src={user?.imageUrl} />
+          <AvatarFallback>{user?.firstName?.[0] || 'U'}</AvatarFallback>
         </Avatar>
         <div className="flex-1 text-muted-foreground text-[15px]">
           Start a thread...
@@ -46,11 +40,41 @@ export function FeedPage({ onOpenPost, activeFilter }: FeedPageProps) {
         </button>
       </div>
 
-      {/* Feed — filtered by activeFilter (mock: same posts for all) */}
+      {/* Feed — filtered by activeFilter */}
       <div className="flex flex-col">
-        {MOCK_POSTS.map(post => (
-          <PostCard key={post.id} {...post} />
-        ))}
+        {isLoading && (
+          <div className="flex justify-center py-10">
+            <Loader2 className="animate-spin text-muted-foreground" size={24} />
+          </div>
+        )}
+        
+        {posts.map(post => {
+          // Calculate relative time (dummy logic or simple formatted string)
+          const timestamp = new Date(post.createdAt).toLocaleDateString()
+          return (
+            <PostCard 
+              key={post.id} 
+              id={post.id}
+              author={{
+                name: post.author.displayName || post.author.username,
+                username: post.author.username,
+                avatar: post.author.imageUrl || `https://ui-avatars.com/api/?name=${post.author.username}`,
+                isVerified: post.author.isVerified
+              }}
+              content={post.content}
+              timestamp={timestamp}
+              likes={post.likeCount}
+              comments={post.commentCount} 
+              hasReply={false} // to be computed
+            />
+          )
+        })}
+        
+        {!isLoading && posts.length === 0 && (
+          <div className="text-center py-10 text-muted-foreground text-sm">
+            Chưa có bài viết nào
+          </div>
+        )}
         <div className="h-20" />
       </div>
     </div>

@@ -2,6 +2,10 @@ import { useState, useEffect } from "react"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { useMutation, useQueryClient } from "@tanstack/react-query"
+import { useApi } from "@/hooks/useApi"
+import { useUser } from "@clerk/clerk-react"
+import { Loader2 } from "lucide-react"
 
 interface CreatePostModalProps {
   isOpen: boolean
@@ -10,6 +14,27 @@ interface CreatePostModalProps {
 
 export function CreatePostModal({ isOpen, onClose }: CreatePostModalProps) {
   const [content, setContent] = useState("")
+  const { apiFetch } = useApi()
+  const queryClient = useQueryClient()
+  const { user } = useUser()
+
+  const createPostMutation = useMutation({
+    mutationFn: (newContent: string) => {
+      return apiFetch("/api/posts", {
+        method: "POST",
+        body: JSON.stringify({ content: newContent }),
+      })
+    },
+    onSuccess: () => {
+      setContent("")
+      onClose()
+      queryClient.invalidateQueries({ queryKey: ["posts"] })
+    },
+    onError: (error) => {
+      console.error("Failed to post:", error)
+      alert("Đã xảy ra lỗi khi đăng bài thử lại sau!")
+    }
+  })
 
   // Handle Cmd/Ctrl + Enter to submit
   useEffect(() => {
@@ -24,11 +49,8 @@ export function CreatePostModal({ isOpen, onClose }: CreatePostModalProps) {
   }, [isOpen, content])
 
   const handlePost = () => {
-    if (!content.trim()) return
-    console.log("Posting:", content)
-    // TODO: Connect to actual API
-    setContent("")
-    onClose()
+    if (!content.trim() || createPostMutation.isPending) return
+    createPostMutation.mutate(content)
   }
 
   return (
@@ -42,13 +64,14 @@ export function CreatePostModal({ isOpen, onClose }: CreatePostModalProps) {
         <div className="p-6 flex gap-3">
           <div className="flex flex-col items-center">
              <Avatar className="w-10 h-10 border-2 border-border">
-              <AvatarFallback>U</AvatarFallback>
+              <AvatarImage src={user?.imageUrl} />
+              <AvatarFallback>{user?.firstName?.[0] || 'U'}</AvatarFallback>
             </Avatar>
             <div className="w-[2px] bg-border grow mt-2 mb-1 rounded-full"></div>
           </div>
           
           <div className="flex-1 flex flex-col pt-1">
-            <span className="font-semibold text-[15px]">You</span>
+            <span className="font-semibold text-[15px]">{user?.fullName || user?.username || "You"}</span>
             <textarea 
               className="mt-1 w-full bg-transparent resize-none outline-none text-[15px] placeholder:text-muted-foreground min-h-[120px]"
               placeholder="Start a thread..."
@@ -60,13 +83,13 @@ export function CreatePostModal({ isOpen, onClose }: CreatePostModalProps) {
         </div>
 
         <div className="px-6 py-4 flex justify-between items-center border-t-2 border-border bg-muted/5">
-          <span className="text-sm text-muted-foreground">Anyone can reply</span>
+          <span className="text-sm text-muted-foreground">Bất kỳ ai cũng có thể trả lời</span>
           <Button 
             onClick={handlePost} 
-            disabled={!content.trim()}
+            disabled={!content.trim() || createPostMutation.isPending}
             className="rounded-full px-8 py-5 font-semibold transition-all"
           >
-            Post
+            {createPostMutation.isPending ? <Loader2 className="animate-spin w-4 h-4" /> : "Đăng"}
           </Button>
         </div>
       </DialogContent>
