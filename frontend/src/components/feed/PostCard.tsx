@@ -14,16 +14,39 @@ interface PostCardProps {
   likes: number
   comments: number
   hasReply?: boolean
+  isLiked?: boolean
+  onToggleLike?: () => void
+  likeDisabled?: boolean
+  commentsOpen?: boolean
+  onToggleComments?: () => void
+  isReposted?: boolean
+  onToggleRepost?: () => void
+  repostDisabled?: boolean
 }
 
-export function PostCard({ author, content, timestamp, likes, comments, hasReply }: PostCardProps) {
+export function PostCard({
+  author,
+  content,
+  timestamp,
+  likes,
+  comments,
+  hasReply,
+  isLiked = false,
+  onToggleLike,
+  likeDisabled = false,
+  commentsOpen = false,
+  onToggleComments,
+  isReposted = false,
+  onToggleRepost,
+  repostDisabled = false,
+}: PostCardProps) {
   return (
     <div className="flex gap-3 px-6 py-4 border-b-2 border-border hover:bg-muted/10 transition-colors">
       {/* Cột trái: Avatar và ThreadLine */}
       <div className="flex flex-col items-center">
         <Avatar className="w-10 h-10 border-2 border-border">
           <AvatarImage src={author.avatar} alt={author.name} />
-          <AvatarFallback>{author.name[0]}</AvatarFallback>
+          <AvatarFallback>{author.name?.[0] || '?'}</AvatarFallback>
         </Avatar>
         {hasReply && (
           <div className="w-[2px] bg-border grow mt-2 mb-1 rounded-full relative overflow-hidden"></div>
@@ -48,17 +71,37 @@ export function PostCard({ author, content, timestamp, likes, comments, hasReply
 
         {/* Action Buttons */}
         <div className="flex items-center gap-6 mt-3">
-          <button className="flex items-center gap-1.5 text-muted-foreground hover:text-foreground transition-colors group">
+          <button
+            onClick={onToggleLike}
+            disabled={likeDisabled}
+            className={`flex items-center gap-1.5 transition-colors group disabled:opacity-50 ${
+              isLiked ? "text-rose-600" : "text-muted-foreground hover:text-foreground"
+            }`}
+            title={isLiked ? "Bỏ thích" : "Thích"}
+          >
             <Heart size={18} className="transition-all group-hover:scale-110 group-active:scale-95" />
             <span className="text-sm font-medium">{likes > 0 ? likes : ""}</span>
           </button>
           
-          <button className="flex items-center gap-1.5 text-muted-foreground hover:text-foreground transition-colors group">
+          <button
+            onClick={onToggleComments}
+            className={`flex items-center gap-1.5 transition-colors group ${
+              commentsOpen ? "text-foreground" : "text-muted-foreground hover:text-foreground"
+            }`}
+            title={commentsOpen ? "Ẩn bình luận" : "Xem bình luận"}
+          >
             <MessageCircle size={18} className="transition-all group-hover:scale-110 group-active:scale-95" />
             <span className="text-sm font-medium">{comments > 0 ? comments : ""}</span>
           </button>
           
-          <button className="flex items-center gap-1.5 text-muted-foreground hover:text-foreground transition-colors group">
+          <button
+            onClick={onToggleRepost}
+            disabled={repostDisabled}
+            className={`flex items-center gap-1.5 transition-colors group disabled:opacity-50 ${
+              isReposted ? "text-emerald-600" : "text-muted-foreground hover:text-foreground"
+            }`}
+            title={isReposted ? "Bỏ đăng lại" : "Đăng lại"}
+          >
             <Repeat2 size={18} className="transition-all group-hover:scale-110 group-active:scale-95" />
           </button>
           
