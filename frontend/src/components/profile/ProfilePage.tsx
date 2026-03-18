@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react"
+import { useMemo, useState } from "react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -11,8 +11,11 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { useApi } from "@/hooks/useApi"
+import { useI18n } from "@/contexts/I18nContext"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import type { Comment, PaginatedResponse, Post, ProfileLink, RepostPost, User } from "@/types/api"
+import { formatRelativeTime } from "@/lib/time"
+import { UserHoverPreview } from "@/components/profile/UserHoverPreview"
 import { Link2, Pencil, Plus, Trash2 } from "lucide-react"
 
 type ProfileTab = "posts" | "replies" | "reposts"
@@ -46,21 +49,6 @@ const USERNAME_REGEX = /^[a-zA-Z0-9_.]+$/
 const getDisplayName = (user: User | undefined) => {
   if (!user) return "User"
   return user.displayName || user.username || "User"
-}
-
-const formatRelativeTime = (isoDate: string) => {
-  const now = Date.now()
-  const date = new Date(isoDate).getTime()
-  const diff = Math.max(0, now - date)
-  const minute = 60 * 1000
-  const hour = 60 * minute
-  const day = 24 * hour
-
-  if (diff < minute) return "Vừa xong"
-  if (diff < hour) return `${Math.floor(diff / minute)} phút trước`
-  if (diff < day) return `${Math.floor(diff / hour)} giờ trước`
-  if (diff < 7 * day) return `${Math.floor(diff / day)} ngày trước`
-  return new Date(isoDate).toLocaleDateString("vi-VN")
 }
 
 const normalizeEditableLinks = (links: EditableLink[]) => {
@@ -107,6 +95,7 @@ const normalizeEditableLinks = (links: EditableLink[]) => {
 }
 
 export function ProfilePage() {
+  const { language, t } = useI18n()
   const [activeTab, setActiveTab] = useState<ProfileTab>("posts")
   const [isEditOpen, setIsEditOpen] = useState(false)
   const [username, setUsername] = useState("")
@@ -161,8 +150,24 @@ export function ProfilePage() {
     },
   })
 
-  useEffect(() => {
-    if (!isEditOpen || !me) return
+  const profileLinks = useMemo(() => {
+    if (!me) return []
+    return (me.links || me.profileLinks || []) as ProfileLink[]
+  }, [me])
+
+  const posts = postPage?.data || []
+  const replies = repliesPage?.data || []
+  const reposts = repostPage?.data || []
+
+  const followerCount = me?._count?.followers ?? me?.followerCount ?? 0
+  const followingCount = me?._count?.following ?? me?.followingCount ?? 0
+
+  const showUsernameHint = Boolean(me?.username && /^(user_|member_)/.test(me.username))
+
+  const openEditDialog = () => {
+    if (!me) {
+      return
+    }
 
     const currentLinks = (me.links || me.profileLinks || []) as ProfileLink[]
 
@@ -178,21 +183,8 @@ export function ProfilePage() {
       }))
     )
     setFormError(null)
-  }, [isEditOpen, me])
-
-  const profileLinks = useMemo(() => {
-    if (!me) return []
-    return (me.links || me.profileLinks || []) as ProfileLink[]
-  }, [me])
-
-  const posts = postPage?.data || []
-  const replies = repliesPage?.data || []
-  const reposts = repostPage?.data || []
-
-  const followerCount = me?._count?.followers ?? me?.followerCount ?? 0
-  const followingCount = me?._count?.following ?? me?.followingCount ?? 0
-
-  const showUsernameHint = Boolean(me?.username && /^(user_|member_)/.test(me.username))
+    setIsEditOpen(true)
+  }
 
   const onAddLink = () => {
     if (links.length >= 10) return
@@ -334,12 +326,12 @@ export function ProfilePage() {
         <div className="flex items-center gap-4 mb-4 text-sm">
           <span>
             <span className="font-bold">{followerCount.toLocaleString()}</span>{" "}
-            <span className="text-muted-foreground">người theo dõi</span>
+            <span className="text-muted-foreground">{t("profile.followers")}</span>
           </span>
           <span className="text-muted-foreground/30">·</span>
           <span>
             <span className="font-bold">{followingCount}</span>{" "}
-            <span className="text-muted-foreground">đang theo dõi</span>
+            <span className="text-muted-foreground">{t("profile.following")}</span>
           </span>
         </div>
 
@@ -347,7 +339,7 @@ export function ProfilePage() {
           variant="outline"
           size="sm"
           className="w-full rounded-full font-semibold gap-2 h-9"
-          onClick={() => setIsEditOpen(true)}
+          onClick={openEditDialog}
         >
           <Pencil size={14} />
           Chỉnh sửa trang cá nhân
@@ -390,7 +382,7 @@ export function ProfilePage() {
               </Avatar>
               <div>
                 <span className="text-sm font-semibold">{getDisplayName(me)}</span>
-                <span className="text-xs text-muted-foreground ml-2">{formatRelativeTime(post.createdAt)}</span>
+                <span className="text-xs text-muted-foreground ml-2">{formatRelativeTime(post.createdAt, language, t)}</span>
               </div>
             </div>
             <p className="text-sm leading-relaxed pl-11">{post.content}</p>
@@ -418,7 +410,7 @@ export function ProfilePage() {
               </Avatar>
               <div>
                 <span className="text-sm font-semibold">{getDisplayName(me)}</span>
-                <span className="text-xs text-muted-foreground ml-2">{formatRelativeTime(reply.createdAt)}</span>
+                <span className="text-xs text-muted-foreground ml-2">{formatRelativeTime(reply.createdAt, language, t)}</span>
               </div>
             </div>
             <p className="text-sm leading-relaxed pl-11">{reply.content}</p>
@@ -444,7 +436,7 @@ export function ProfilePage() {
         {activeTab === "reposts" && reposts.map((repost) => (
           <div key={repost.repostId} className="px-5 py-4 hover:bg-muted/15 transition-colors">
             <p className="text-xs text-muted-foreground mb-2">
-              Đăng lại lúc {formatRelativeTime(repost.repostedAt)}
+              Đăng lại lúc {formatRelativeTime(repost.repostedAt, language, t)}
             </p>
             <div className="flex items-center gap-3 mb-2">
               <Avatar className="w-8 h-8 border border-border">
@@ -452,9 +444,11 @@ export function ProfilePage() {
                 <AvatarFallback>{(repost.author.displayName || repost.author.username || "U")[0]}</AvatarFallback>
               </Avatar>
               <div>
-                <span className="text-sm font-semibold">
-                  {repost.author.displayName || repost.author.username}
-                </span>
+                <UserHoverPreview
+                  username={repost.author.username || "unknown"}
+                  fallbackName={repost.author.displayName || repost.author.username || "Unknown"}
+                  className="text-sm font-semibold hover:underline cursor-pointer"
+                />
                 <span className="text-xs text-muted-foreground ml-2">@{repost.author.username}</span>
               </div>
             </div>

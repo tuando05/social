@@ -2,6 +2,7 @@ import type { ReactNode } from "react"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { MoreHorizontal, Trash2, ChevronDown, Check } from "lucide-react"
 import { useState, useRef, useEffect } from "react"
+import { useI18n } from "@/contexts/I18nContext"
 
 export interface FilterOption {
   key: string
@@ -31,12 +32,18 @@ export function SubPageContainer({
   onFilterChange,
   disableInternalScroll = false,
 }: SubPageContainerProps) {
+  const { t } = useI18n()
   const [menuOpen,   setMenuOpen]   = useState(false)
   const [filterOpen, setFilterOpen] = useState(false)
   const menuRef   = useRef<HTMLDivElement>(null)
   const filterRef = useRef<HTMLDivElement>(null)
 
-  const wClass = columnCount <= 1 ? "w-[650px]" : columnCount === 2 ? "w-[500px]" : "w-[420px]"
+  const wClass =
+    columnCount <= 1
+      ? "w-[min(96vw,650px)]"
+      : columnCount === 2
+        ? "w-[min(88vw,500px)]"
+        : "w-[min(82vw,420px)]"
 
   const activeLabel = filterOptions?.find(f => f.key === activeFilter)?.label ?? title
 
@@ -51,7 +58,7 @@ export function SubPageContainer({
   }, [])
 
   return (
-    <div className={`${disableInternalScroll ? 'min-h-screen' : 'h-full'} ${wClass} flex flex-col shrink-0 gap-3`}>
+    <div className={`${disableInternalScroll ? 'min-h-screen' : 'h-full'} ${wClass} flex flex-col shrink-0 gap-3 [container-type:inline-size]`}>
       {/* Title row — outside the card */}
       <div className="flex items-center justify-center relative px-2 min-h-[28px]">
 
@@ -60,7 +67,7 @@ export function SubPageContainer({
           <div className="relative" ref={filterRef}>
             <button
               onClick={() => setFilterOpen(v => !v)}
-              className="flex items-center gap-1 text-[17px] font-bold text-muted-foreground/80 hover:text-foreground/90 transition-colors"
+              className="flex items-center gap-1 text-[clamp(14px,3.8cqw,17px)] font-bold text-muted-foreground/80 hover:text-foreground/90 transition-colors"
             >
               {activeLabel}
               <ChevronDown
@@ -85,7 +92,7 @@ export function SubPageContainer({
             )}
           </div>
         ) : (
-          <h2 className="text-[17px] font-bold text-muted-foreground/80">{title}</h2>
+          <h2 className="text-[clamp(14px,3.8cqw,17px)] font-bold text-muted-foreground/80">{title}</h2>
         )}
 
         {/* Three-dot menu (right-absolute) */}
@@ -105,7 +112,7 @@ export function SubPageContainer({
                   className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-destructive hover:bg-destructive/10 transition-colors"
                 >
                   <Trash2 size={15} />
-                  Xoá cột này
+                  {t("app.deleteColumn")}
                 </button>
               </div>
             )}

@@ -3,6 +3,8 @@ import { useApi } from "@/hooks/useApi"
 import type { PaginatedResponse, Notification } from "@/types/api"
 import { Loader2 } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { useI18n } from "@/contexts/I18nContext"
+import { UserHoverPreview } from "@/components/profile/UserHoverPreview"
 
 type FilterKey = "all" | "replies" | "mentions" | "follows" | "requests"
 
@@ -11,6 +13,7 @@ interface NotificationsPageProps {
 }
 
 export function NotificationsPage({ activeFilter = "all" }: NotificationsPageProps) {
+  const { language, t } = useI18n()
   const { apiFetch } = useApi()
 
   const { data, isLoading } = useQuery<PaginatedResponse<Notification>>({
@@ -22,12 +25,12 @@ export function NotificationsPage({ activeFilter = "all" }: NotificationsPagePro
 
   // Map backend notifications to the UI
   const formattedItems = notifications.map(n => {
-    let content = "đã tương tác với bạn."
-    if (n.type === "LIKE_POST") content = "đã thích bài viết của bạn."
-    if (n.type === "LIKE_COMMENT") content = "đã thích bình luận của bạn."
-    if (n.type === "COMMENT") content = "đã bình luận bài viết của bạn."
-    if (n.type === "FOLLOW") content = "bắt đầu theo dõi bạn."
-    if (n.type === "MENTION") content = "đã nhắc đến bạn."
+    let content = t("notifications.interacted")
+    if (n.type === "LIKE_POST") content = t("notifications.likePost")
+    if (n.type === "LIKE_COMMENT") content = t("notifications.likeComment")
+    if (n.type === "COMMENT") content = t("notifications.comment")
+    if (n.type === "FOLLOW") content = t("notifications.follow")
+    if (n.type === "MENTION") content = t("notifications.mention")
 
     // Dummy categorization for the UI tabs since backend doesn't have exact categories yet
     let category: FilterKey = "all"
@@ -38,9 +41,10 @@ export function NotificationsPage({ activeFilter = "all" }: NotificationsPagePro
     return {
       id: n.id,
       avatar: n.actor?.imageUrl || "",
-      name: n.actor?.displayName || n.actor?.username || "Ẩn danh",
+      name: n.actor?.displayName || n.actor?.username || (language === "vi" ? "An danh" : "Anonymous"),
+      username: n.actor?.username || "unknown",
       content,
-      time: new Date(n.createdAt).toLocaleDateString(),
+      time: new Date(n.createdAt).toLocaleDateString(language === "vi" ? "vi-VN" : "en-US"),
       isRead: n.isRead,
       category,
       originalType: n.type
@@ -62,7 +66,7 @@ export function NotificationsPage({ activeFilter = "all" }: NotificationsPagePro
 
         {!isLoading && items.length === 0 && (
           <div className="text-center py-10 text-muted-foreground text-sm">
-            Bạn chưa có thông báo nào.
+            {t("notifications.empty")}
           </div>
         )}
 
@@ -83,7 +87,11 @@ export function NotificationsPage({ activeFilter = "all" }: NotificationsPagePro
 
             <div className="flex-1 min-w-0">
               <p className="text-sm leading-snug">
-                <span className="font-semibold">{item.name}</span>{" "}
+                <UserHoverPreview
+                  username={item.username}
+                  fallbackName={item.name}
+                  className="font-semibold hover:underline cursor-pointer"
+                />{" "}
                 <span className="text-muted-foreground">{item.content}</span>
               </p>
               <p className="text-xs text-muted-foreground/60 mt-0.5">{item.time}</p>
@@ -91,16 +99,16 @@ export function NotificationsPage({ activeFilter = "all" }: NotificationsPagePro
 
             {activeFilter === "follows" && (
               <button className="shrink-0 text-xs font-semibold px-3 py-1.5 rounded-full border border-border hover:bg-muted/30 transition-colors">
-                Theo dõi lại
+                {t("notifications.followBack")}
               </button>
             )}
             {activeFilter === "requests" && (
               <div className="shrink-0 flex gap-1.5">
                 <button className="text-xs font-semibold px-3 py-1.5 rounded-full bg-foreground text-background hover:opacity-90 transition-opacity">
-                  Chấp nhận
+                  {t("notifications.accept")}
                 </button>
                 <button className="text-xs font-semibold px-3 py-1.5 rounded-full border border-border hover:bg-muted/30 transition-colors">
-                  Từ chối
+                  {t("notifications.reject")}
                 </button>
               </div>
             )}

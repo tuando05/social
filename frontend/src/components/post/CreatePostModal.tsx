@@ -1,18 +1,15 @@
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, type CSSProperties } from "react"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { useApi } from "@/hooks/useApi"
+import { useI18n } from "@/contexts/I18nContext"
+import { formatRelativeTime } from "@/lib/time"
 import { useUser } from "@clerk/clerk-react"
 import { Loader2, Image as ImageIcon, X, Globe, Users, ChevronDown, Check, FileText, Trash2, Clock, ArrowLeft } from "lucide-react"
 
 type ReplyPermission = 'everyone' | 'followers'
-
-const REPLY_OPTIONS = {
-  everyone: { label: 'Mọi người', icon: Globe },
-  followers: { label: 'Người theo dõi', icon: Users },
-} as const
 
 interface Draft {
   id: string
@@ -25,13 +22,36 @@ interface Draft {
 interface CreatePostModalProps {
   isOpen: boolean
   onClose: () => void
-  initialDraft?: Draft | null
-  onOpenDrafts?: () => void
 }
 
 type ViewMode = 'compose' | 'drafts'
 
-export function CreatePostModal({ isOpen, onClose, initialDraft = null, onOpenDrafts }: CreatePostModalProps) {
+// Resize composer dialog by editing only these numbers.
+const COMPOSER_LAYOUT = {
+  widthVw: 90,
+  maxWidthPx: 600,
+  maxHeightDvh: 88,
+  bodyMaxHeightDvh: 70,
+} as const
+
+// App shell layout: sidebar is fixed 80px wide, so content center is shifted by 40px.
+const APP_SIDEBAR_WIDTH_PX = 80
+const COMPOSER_VIEWPORT_GUTTER_PX = 24
+const COMPOSER_CENTER_OFFSET_PX = APP_SIDEBAR_WIDTH_PX / 2
+
+const COMPOSER_DIALOG_STYLE: CSSProperties = {
+  width: `min(${COMPOSER_LAYOUT.widthVw}vw, calc(100vw - ${APP_SIDEBAR_WIDTH_PX + COMPOSER_VIEWPORT_GUTTER_PX * 2}px))`,
+  maxWidth: `${COMPOSER_LAYOUT.maxWidthPx}px`,
+  maxHeight: `${COMPOSER_LAYOUT.maxHeightDvh}dvh`,
+  left: `calc(50% + ${COMPOSER_CENTER_OFFSET_PX}px)`,
+}
+
+const COMPOSER_BODY_STYLE: CSSProperties = {
+  maxHeight: `${COMPOSER_LAYOUT.bodyMaxHeightDvh}dvh`,
+}
+
+export function CreatePostModal({ isOpen, onClose }: CreatePostModalProps) {
+  const { language, t } = useI18n()
   const [viewMode, setViewMode] = useState<ViewMode>('compose')
   const [drafts, setDrafts] = useState<Draft[]>([])
   const [content, setContent] = useState("")
@@ -41,6 +61,12 @@ export function CreatePostModal({ isOpen, onClose, initialDraft = null, onOpenDr
   const [showDiscardDialog, setShowDiscardDialog] = useState(false)
   const [hasDraft, setHasDraft] = useState(false)
   const [currentDraftId, setCurrentDraftId] = useState<string | null>(null)
+  const [composerError, setComposerError] = useState<string | null>(null)
+
+  const replyOptions = {
+    everyone: { label: t("composer.reply.everyone"), icon: Globe },
+    followers: { label: t("composer.reply.followers"), icon: Users },
+  } as const
 
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const imageInputRef = useRef<HTMLInputElement>(null)
@@ -82,60 +108,17 @@ export function CreatePostModal({ isOpen, onClose, initialDraft = null, onOpenDr
   }
 
   const formatDate = (timestamp: number) => {
-    const date = new Date(timestamp)
-    const now = new Date()
-    const diffMs = now.getTime() - date.getTime()
-    const diffMins = Math.floor(diffMs / 60000)
-    const diffHours = Math.floor(diffMs / 3600000)
-    const diffDays = Math.floor(diffMs / 86400000)
-
-    if (diffMins < 1) return 'Vừa xong'
-    if (diffMins < 60) return `${diffMins} phút trước`
-    if (diffHours < 24) return `${diffHours} giờ trước`
-    if (diffDays < 7) return `${diffDays} ngày trước`
-    return date.toLocaleDateString('vi-VN')
+    return formatRelativeTime(new Date(timestamp).toISOString(), language, t)
   }
 
-  // Load initial draft or from localStorage
-  useEffect(() => {
-    if (isOpen) {
-      if (initialDraft) {
-        // Load from selected draft
-        setContent(initialDraft.content)
-        setReplyPermission(initialDraft.replyPermission)
-        setImages([])
-        setCurrentDraftId(initialDraft.id)
-        setHasDraft(true)
-        setViewMode('compose')
-      } else {
-        // Clear form for new post
-        setContent("")
-        setImages([])
-        setReplyPermission('everyone')
-        setCurrentDraftId(null)
-        setHasDraft(false)
-        setViewMode('compose')
-      }
-      loadDrafts()
-    }
-  }, [isOpen, initialDraft])
-
   const createPostMutation = useMutation({
-    mutationFn: async (data: { content: string; images: File[]; replyPermission: ReplyPermission }) => {
-      const formData = new FormData()
-      formData.append('content', data.content)
-      formData.append('replyPermission', data.replyPermission)
-
-      data.images.forEach((image) => {
-        formData.append(`images`, image)
-      })
-
+    mutationFn: async (data: { content: string }) => {
       return apiFetch("/api/posts", {
         method: "POST",
-        body: formData,
-        headers: {
-          // Không set Content-Type, browser tự set cho FormData
-        },
+        body: JSON.stringify({
+          content: data.content.trim(),
+          imageUrls: [],
+        }),
       })
     },
     onSuccess: () => {
@@ -157,12 +140,14 @@ export function CreatePostModal({ isOpen, onClose, initialDraft = null, onOpenDr
       setImages([])
       setReplyPermission('everyone')
       setCurrentDraftId(null)
+      setHasDraft(false)
+      setComposerError(null)
       onClose()
       queryClient.invalidateQueries({ queryKey: ["posts"] })
     },
-    onError: (error) => {
+    onError: (error: unknown) => {
       console.error("Failed to post:", error)
-      alert("Đã xảy ra lỗi khi đăng bài thử lại sau!")
+      setComposerError(error instanceof Error ? error.message : t("composer.postError"))
     }
   })
 
@@ -188,26 +173,16 @@ export function CreatePostModal({ isOpen, onClose, initialDraft = null, onOpenDr
     }
   }, [showReplyMenu])
 
-  // Handle Cmd/Ctrl + Enter to submit
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === "Enter" && isOpen) {
-        e.preventDefault()
-        handlePost()
-      }
-      // ESC to close with confirm
-      if (e.key === "Escape" && isOpen) {
-        e.preventDefault()
-        handleCloseAttempt()
-      }
-    }
-    window.addEventListener("keydown", handleKeyDown)
-    return () => window.removeEventListener("keydown", handleKeyDown)
-  }, [isOpen, content, images])
-
   const handlePost = () => {
     if (!content.trim() || createPostMutation.isPending) return
-    createPostMutation.mutate({ content, images, replyPermission })
+
+    if (images.length > 0) {
+      setComposerError(t("composer.unsupportedImages"))
+      return
+    }
+
+    setComposerError(null)
+    createPostMutation.mutate({ content })
   }
 
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -229,6 +204,45 @@ export function CreatePostModal({ isOpen, onClose, initialDraft = null, onOpenDr
     }
   }
 
+  // Handle Cmd/Ctrl + Enter to submit
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (!isOpen) {
+        return
+      }
+
+      if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+        e.preventDefault()
+
+        if (!content.trim() || createPostMutation.isPending) {
+          return
+        }
+
+        if (images.length > 0) {
+          setComposerError(t("composer.unsupportedImages"))
+          return
+        }
+
+        setComposerError(null)
+        createPostMutation.mutate({ content })
+      }
+
+      if (e.key === "Escape") {
+        e.preventDefault()
+
+        if (content.trim() || images.length > 0) {
+          setShowDiscardDialog(true)
+          return
+        }
+
+        onClose()
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown)
+    return () => window.removeEventListener("keydown", handleKeyDown)
+  }, [isOpen, content, images, createPostMutation, onClose, t])
+
   const handleConfirmDiscard = () => {
     // If editing existing draft, delete it
     if (currentDraftId) {
@@ -248,11 +262,13 @@ export function CreatePostModal({ isOpen, onClose, initialDraft = null, onOpenDr
     setImages([])
     setReplyPermission('everyone')
     setCurrentDraftId(null)
+    setHasDraft(false)
+    setComposerError(null)
     setShowDiscardDialog(false)
     onClose()
   }
 
-  const handleSaveDraft = async () => {
+  const handleSaveDraft = () => {
     const savedDrafts = localStorage.getItem('post-drafts')
     let drafts: Draft[] = []
 
@@ -290,19 +306,31 @@ export function CreatePostModal({ isOpen, onClose, initialDraft = null, onOpenDr
     setImages([])
     setReplyPermission('everyone')
     setCurrentDraftId(null)
+    setHasDraft(false)
+    setComposerError(null)
     setShowDiscardDialog(false)
     onClose()
   }
 
-  const hasContent = content.trim() || images.length > 0
+  const hasContent = Boolean(content.trim() || images.length > 0)
 
   return (
     <>
-      <Dialog open={isOpen} onOpenChange={handleCloseAttempt}>
-        <DialogContent className="max-w-none w-[calc(100vw-80px-440px-420px)] ml-[calc(40px)] bg-card p-0 gap-0 overflow-hidden border-2 border-border rounded-[32px] shadow-2xl">
+      <Dialog
+        open={isOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            handleCloseAttempt()
+          }
+        }}
+      >
+        <DialogContent
+          className="bg-card p-0 gap-0 overflow-hidden border-2 border-border rounded-[32px] shadow-2xl"
+          style={COMPOSER_DIALOG_STYLE}
+        >
           <DialogHeader className="px-6 py-4 border-b border-border/50 relative">
             <DialogTitle className="text-center font-bold text-[17px]">
-              {viewMode === 'compose' ? 'Tạo chủ đề mới' : `Bản nháp (${drafts.length})`}
+              {viewMode === 'compose' ? t("composer.title") : `${t("composer.drafts")} (${drafts.length})`}
             </DialogTitle>
             <DialogDescription className="sr-only">Create a new post or view drafts</DialogDescription>
 
@@ -310,17 +338,11 @@ export function CreatePostModal({ isOpen, onClose, initialDraft = null, onOpenDr
             {viewMode === 'compose' ? (
               <button
                 onClick={() => {
-                  if (onOpenDrafts) {
-                    onClose()
-                    onOpenDrafts()
-                    return
-                  }
-
                   loadDrafts()
                   setViewMode('drafts')
                 }}
                 className="absolute left-6 top-1/2 -translate-y-1/2 p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors"
-                title="Bản nháp"
+                title={t("composer.drafts")}
               >
                 <FileText size={20} />
               </button>
@@ -328,7 +350,7 @@ export function CreatePostModal({ isOpen, onClose, initialDraft = null, onOpenDr
               <button
                 onClick={() => setViewMode('compose')}
                 className="absolute left-6 top-1/2 -translate-y-1/2 p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors"
-                title="Quay lại"
+                title={t("composer.back")}
               >
                 <ArrowLeft size={20} />
               </button>
@@ -340,11 +362,17 @@ export function CreatePostModal({ isOpen, onClose, initialDraft = null, onOpenDr
             <>
               {hasDraft && content && (
                 <div className="mx-6 mt-4 px-4 py-3 bg-blue-500/10 border border-blue-500/30 rounded-xl text-sm text-blue-600 dark:text-blue-400">
-                  📝 Đã khôi phục bản nháp
+                  {t("composer.draftRestored")}
                 </div>
               )}
 
-              <div className="max-h-[70vh] overflow-y-auto">
+              {composerError && (
+                <div className="mx-6 mt-4 rounded-xl border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-700">
+                  {composerError}
+                </div>
+              )}
+
+              <div className="flex-1 overflow-y-auto" style={COMPOSER_BODY_STYLE}>
             <div className="p-6 flex gap-3">
               <div className="flex flex-col items-center">
                 <Avatar className="w-10 h-10 border-2 border-border">
@@ -360,10 +388,15 @@ export function CreatePostModal({ isOpen, onClose, initialDraft = null, onOpenDr
                   <textarea
                     ref={textareaRef}
                     className="mt-2 w-full bg-transparent resize-none outline-none text-[15px] placeholder:text-muted-foreground max-h-[300px] overflow-y-auto"
-                    placeholder="Bắt đầu một chủ đề..."
+                    placeholder={t("composer.placeholder")}
                     autoFocus
                     value={content}
-                    onChange={(e) => setContent(e.target.value)}
+                    onChange={(e) => {
+                      setContent(e.target.value)
+                      if (composerError) {
+                        setComposerError(null)
+                      }
+                    }}
                     rows={1}
                   />
                 </div>
@@ -407,7 +440,7 @@ export function CreatePostModal({ isOpen, onClose, initialDraft = null, onOpenDr
                     onClick={() => imageInputRef.current?.click()}
                     disabled={images.length >= 4}
                     className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                    title="Thêm ảnh"
+                    title={t("composer.addImage")}
                   >
                     <ImageIcon size={20} />
                   </button>
@@ -425,11 +458,11 @@ export function CreatePostModal({ isOpen, onClose, initialDraft = null, onOpenDr
                 className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
               >
                 {(() => {
-                  const Icon = REPLY_OPTIONS[replyPermission].icon
+                  const Icon = replyOptions[replyPermission].icon
                   return (
                     <>
                       <Icon size={16} />
-                      <span>{REPLY_OPTIONS[replyPermission].label} có thể trả lời</span>
+                      <span>{t("composer.replyCan", { label: replyOptions[replyPermission].label })}</span>
                       <ChevronDown size={14} className={`transition-transform ${showReplyMenu ? 'rotate-180' : ''}`} />
                     </>
                   )
@@ -438,8 +471,8 @@ export function CreatePostModal({ isOpen, onClose, initialDraft = null, onOpenDr
 
               {showReplyMenu && (
                 <div className="absolute bottom-full left-0 mb-2 w-[220px] bg-popover border border-border rounded-xl shadow-xl py-1.5 overflow-hidden z-50">
-                  <p className="text-xs font-semibold text-muted-foreground px-3 py-2">Ai có thể trả lời?</p>
-                  {Object.entries(REPLY_OPTIONS).map(([key, { label, icon: Icon }]) => (
+                  <p className="text-xs font-semibold text-muted-foreground px-3 py-2">{t("composer.replyWho")}</p>
+                  {Object.entries(replyOptions).map(([key, { label, icon: Icon }]) => (
                     <button
                       key={key}
                       onClick={() => {
@@ -464,7 +497,7 @@ export function CreatePostModal({ isOpen, onClose, initialDraft = null, onOpenDr
               disabled={!hasContent || createPostMutation.isPending}
               className="rounded-full px-8 py-5 font-semibold transition-all bg-foreground text-background hover:bg-foreground/90 disabled:opacity-50"
             >
-              {createPostMutation.isPending ? <Loader2 className="animate-spin w-4 h-4" /> : "Đăng"}
+              {createPostMutation.isPending ? <Loader2 className="animate-spin w-4 h-4" /> : t("composer.post")}
             </Button>
           </div>
             </>
@@ -476,9 +509,9 @@ export function CreatePostModal({ isOpen, onClose, initialDraft = null, onOpenDr
                   <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mb-4">
                     <Clock size={32} className="text-muted-foreground" />
                   </div>
-                  <h3 className="font-semibold text-lg mb-2">Chưa có bản nháp</h3>
+                  <h3 className="font-semibold text-lg mb-2">{t("composer.emptyDrafts")}</h3>
                   <p className="text-sm text-muted-foreground">
-                    Các bài viết bạn lưu nháp sẽ xuất hiện ở đây
+                    {t("composer.emptyDraftsDesc")}
                   </p>
                 </div>
               ) : (
@@ -494,7 +527,7 @@ export function CreatePostModal({ isOpen, onClose, initialDraft = null, onOpenDr
                           className="flex-1 text-left"
                         >
                           <p className="text-[15px] line-clamp-3 mb-2">
-                            {draft.content || <span className="text-muted-foreground italic">Bản nháp trống</span>}
+                            {draft.content || <span className="text-muted-foreground italic">{language === "vi" ? "Ban nhap trong" : "Empty draft"}</span>}
                           </p>
                           <div className="flex items-center gap-2 text-xs text-muted-foreground">
                             <Clock size={12} />
@@ -504,7 +537,7 @@ export function CreatePostModal({ isOpen, onClose, initialDraft = null, onOpenDr
                         <button
                           onClick={() => deleteDraft(draft.id)}
                           className="p-2 h-9 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
-                          title="Xóa bản nháp"
+                          title={language === "vi" ? "Xoa ban nhap" : "Delete draft"}
                         >
                           <Trash2 size={16} />
                         </button>
@@ -523,9 +556,9 @@ export function CreatePostModal({ isOpen, onClose, initialDraft = null, onOpenDr
         <Dialog open={showDiscardDialog} onOpenChange={setShowDiscardDialog}>
           <DialogContent className="sm:max-w-[400px] bg-card border-2 border-border rounded-[32px] p-6">
             <DialogHeader>
-              <DialogTitle className="text-center font-bold text-lg">Lưu bài đăng?</DialogTitle>
+              <DialogTitle className="text-center font-bold text-lg">{t("composer.savePostTitle")}</DialogTitle>
               <DialogDescription className="text-center text-muted-foreground mt-2">
-                Bạn có thể lưu nội dung này vào nháp để đăng sau.
+                {t("composer.savePostDesc")}
               </DialogDescription>
             </DialogHeader>
             <div className="flex flex-col gap-2 mt-6">
@@ -533,21 +566,21 @@ export function CreatePostModal({ isOpen, onClose, initialDraft = null, onOpenDr
                 onClick={handleSaveDraft}
                 className="w-full rounded-xl py-6 font-semibold bg-foreground text-background hover:bg-foreground/90"
               >
-                Lưu nháp
+                {t("composer.saveDraft")}
               </Button>
               <Button
                 onClick={handleConfirmDiscard}
                 variant="destructive"
                 className="w-full rounded-xl py-6 font-semibold"
               >
-                Bỏ
+                {t("composer.discard")}
               </Button>
               <Button
                 onClick={() => setShowDiscardDialog(false)}
                 variant="outline"
                 className="w-full rounded-xl py-6 font-semibold"
               >
-                Tiếp tục chỉnh sửa
+                {t("composer.continueEdit")}
               </Button>
             </div>
           </DialogContent>
