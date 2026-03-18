@@ -1,0 +1,45 @@
+services:
+  # Backend API Service
+  - type: web
+    name: social-backend
+    runtime: node
+    region: singapore  # Gần Việt Nam hơn
+    plan: free  # Hoặc starter ($7/tháng) để tránh spin-down
+    rootDir: backend
+    buildCommand: npm install && npx prisma generate && npm run build
+    startCommand: npm start
+    envVars:
+      - key: NODE_VERSION
+        value: 20
+      - key: PORT
+        value: 5000
+      # Các biến môi trường dưới đây cần được set trong Render Dashboard
+      # Không nên commit giá trị thực vào git
+      - key: DATABASE_URL
+        sync: false  # Set trong dashboard
+      - key: DIRECT_URL
+        sync: false
+      - key: FRONTEND_ORIGIN
+        sync: false  # Sẽ là URL Vercel của bạn (vd: https://social-app.vercel.app)
+      - key: CLERK_SECRET_KEY
+        sync: false
+      - key: CLERK_PUBLISHABLE_KEY
+        sync: false
+      - key: CLERK_WEBHOOK_SECRET
+        sync: false
+      - key: PUSHER_APP_ID
+        sync: false
+      - key: PUSHER_KEY
+        sync: false
+      - key: PUSHER_SECRET
+        sync: false
+      - key: PUSHER_CLUSTER
+        value: ap1
+      - key: UPLOADTHING_TOKEN
+        sync: false
+      - key: UPLOADTHING_SECRET
+        sync: false
+      - key: UPLOADTHING_APP_ID
+        sync: false
+    healthCheckPath: /api/health
+    autoDeploy: true
