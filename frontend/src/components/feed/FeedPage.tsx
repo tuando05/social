@@ -22,10 +22,11 @@ export function FeedPage({ onOpenPost, activeFilter }: FeedPageProps) {
   const queryClient = useQueryClient()
   const [activeCommentPost, setActiveCommentPost] = useState<Post | null>(null)
   const [commentDrafts, setCommentDrafts] = useState<Record<string, string>>({})
+  const feedFilter = activeFilter === "following" ? "following" : "foryou"
 
   const { data, isLoading, error } = useQuery<PaginatedResponse<Post>>({
-    queryKey: ["posts", "feed", activeFilter],
-    queryFn: () => apiFetch("/api/posts/feed"),
+    queryKey: ["posts", "feed", feedFilter],
+    queryFn: () => apiFetch(`/api/posts/feed?filter=${feedFilter}`),
     placeholderData: (previousData) => previousData,
   })
 
@@ -165,6 +166,7 @@ export function FeedPage({ onOpenPost, activeFilter }: FeedPageProps) {
                   isVerified: post.author.isVerified
                 }}
                 content={post.content}
+                imageUrls={post.imageUrls}
                 timestamp={timestamp}
                 likes={post.likeCount}
                 comments={post.commentCount}

@@ -31,7 +31,6 @@ const buildPageMeta = (t: (key: string) => string): Record<PageType, PageMeta> =
   const feedFilters: FilterOption[] = [
     { key: "foryou", label: t("app.filter.forYou") },
     { key: "following", label: t("app.filter.following") },
-    { key: "suggested", label: t("app.filter.suggested") },
   ]
 
   const notifFilters: FilterOption[] = [
@@ -125,6 +124,34 @@ function App() {
   useEffect(() => {
     if (feedColumns.length === 0) {
       setFeedColumns(INITIAL_COLUMNS)
+      return
+    }
+
+    const hasLegacyFeedFilter = feedColumns.some(
+      (column) =>
+        column.pageType === "feed" &&
+        column.activeFilter !== undefined &&
+        column.activeFilter !== "foryou" &&
+        column.activeFilter !== "following"
+    )
+
+    if (hasLegacyFeedFilter) {
+      setFeedColumns((prev) =>
+        prev.map((column) => {
+          if (column.pageType !== "feed") {
+            return column
+          }
+
+          if (column.activeFilter === "foryou" || column.activeFilter === "following") {
+            return column
+          }
+
+          return {
+            ...column,
+            activeFilter: "foryou",
+          }
+        })
+      )
       return
     }
 

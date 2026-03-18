@@ -3,6 +3,8 @@ import { pusherServer } from "../lib/pusher";
 import { ApiError } from "../middleware/error.middleware";
 import { isPrismaUniqueError } from "../utils/prisma-error";
 
+export type FeedFilter = "foryou" | "following";
+
 export const createPost = async (
   authorId: string,
   payload: { content: string; imageUrls?: string[] }
@@ -26,17 +28,24 @@ export const createPost = async (
   return post;
 };
 
-export const getFeed = async (userId: string, cursor: string | undefined, limit: number) => {
-  const following = await prisma.follow.findMany({
-    where: { followerId: userId },
-    select: { followingId: true },
-  });
+export const getFeed = async (
+  userId: string,
+  cursor: string | undefined,
+  limit: number,
+  filter: FeedFilter = "foryou"
+) => {
+  const following =
+    filter === "following"
+      ? await prisma.follow.findMany({
+          where: { followerId: userId },
+          select: { followingId: true },
+        })
+      : [];
 
-  // If user doesn't follow anyone, show all posts (For You feed)
-  // Otherwise show posts from user + following
-  const authorIds = following.length > 0
-    ? [userId, ...following.map((row: { followingId: string }) => row.followingId)]
-    : undefined;
+  const authorIds =
+    filter === "following"
+      ? following.map((row: { followingId: string }) => row.followingId)
+      : undefined;
 
   const posts = await prisma.post.findMany({
     where: authorIds
@@ -93,10 +102,33 @@ export const getFeed = async (userId: string, cursor: string | undefined, limit:
   };
 };
 
-export const getPostsByUser = async (userId: string, cursor: string | undefined, limit: number) => {
+export const getPostsByUser = async (
+  targetUserId: string,
+  viewerUserId: string,
+  cursor: string | undefined,
+  limit: number
+) => {
   const posts = await prisma.post.findMany({
-    where: { authorId: userId },
-    include: { author: true },
+    where: { authorId: targetUserId },
+    include: {
+      author: true,
+      likes: {
+        where: {
+          userId: viewerUserId,
+        },
+        select: {
+          id: true,
+        },
+      },
+      reposts: {
+        where: {
+          userId: viewerUserId,
+        },
+        select: {
+          id: true,
+        },
+      },
+    },
     orderBy: { createdAt: "desc" },
     take: limit + 1,
     ...(cursor
@@ -108,7 +140,16 @@ export const getPostsByUser = async (userId: string, cursor: string | undefined,
   });
 
   const hasMore = posts.length > limit;
-  const data = hasMore ? posts.slice(0, limit) : posts;
+  const pagedPosts = hasMore ? posts.slice(0, limit) : posts;
+  const data = pagedPosts.map((post) => {
+    const { likes, reposts, ...rest } = post;
+
+    return {
+      ...rest,
+      isLikedByMe: likes.length > 0,
+      isRepostedByMe: reposts.length > 0,
+    };
+  });
 
   return {
     data,
@@ -117,18 +158,35 @@ export const getPostsByUser = async (userId: string, cursor: string | undefined,
 };
 
 export const getRepostsByUser = async (
-  userId: string,
+  targetUserId: string,
+  viewerUserId: string,
   cursor: string | undefined,
   limit: number
 ) => {
   const reposts = await prisma.repost.findMany({
     where: {
-      userId,
+      userId: targetUserId,
     },
     include: {
       post: {
         include: {
           author: true,
+          likes: {
+            where: {
+              userId: viewerUserId,
+            },
+            select: {
+              id: true,
+            },
+          },
+          reposts: {
+            where: {
+              userId: viewerUserId,
+            },
+            select: {
+              id: true,
+            },
+          },
         },
       },
     },
@@ -144,11 +202,17 @@ export const getRepostsByUser = async (
 
   const hasMore = reposts.length > limit;
   const sliced = hasMore ? reposts.slice(0, limit) : reposts;
-  const data = sliced.map((entry) => ({
-    ...entry.post,
-    repostedAt: entry.createdAt,
-    repostId: entry.id,
-  }));
+  const data = sliced.map((entry) => {
+    const { likes, reposts: postReposts, ...rest } = entry.post;
+
+    return {
+      ...rest,
+      isLikedByMe: likes.length > 0,
+      isRepostedByMe: postReposts.length > 0,
+      repostedAt: entry.createdAt,
+      repostId: entry.id,
+    };
+  });
 
   return {
     data,

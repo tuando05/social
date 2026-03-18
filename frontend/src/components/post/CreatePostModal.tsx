@@ -6,8 +6,9 @@ import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { useApi } from "@/hooks/useApi"
 import { useI18n } from "@/contexts/I18nContext"
 import { formatRelativeTime } from "@/lib/time"
-import { useUser } from "@clerk/clerk-react"
+import { useUser, useAuth } from "@clerk/clerk-react"
 import { Loader2, Image as ImageIcon, X, Globe, Users, ChevronDown, Check, FileText, Trash2, Clock, ArrowLeft } from "lucide-react"
+import { useUploadThing } from "@/lib/uploadthing"
 
 type ReplyPermission = 'everyone' | 'followers'
 
@@ -75,6 +76,20 @@ export function CreatePostModal({ isOpen, onClose }: CreatePostModalProps) {
   const { apiFetch } = useApi()
   const queryClient = useQueryClient()
   const { user } = useUser()
+  const { getToken } = useAuth()
+
+  const { startUpload, isUploading } = useUploadThing("imageUploader", {
+    headers: async () => {
+      const token = await getToken()
+      const headers: Record<string, string> = {}
+
+      if (token) {
+        headers.Authorization = `Bearer ${token}`
+      }
+
+      return headers
+    },
+  })
 
   // Load drafts when opening drafts view
   const loadDrafts = () => {
@@ -112,12 +127,12 @@ export function CreatePostModal({ isOpen, onClose }: CreatePostModalProps) {
   }
 
   const createPostMutation = useMutation({
-    mutationFn: async (data: { content: string }) => {
+    mutationFn: async (data: { content: string; imageUrls: string[] }) => {
       return apiFetch("/api/posts", {
         method: "POST",
         body: JSON.stringify({
           content: data.content.trim(),
-          imageUrls: [],
+          imageUrls: data.imageUrls,
         }),
       })
     },
@@ -173,16 +188,36 @@ export function CreatePostModal({ isOpen, onClose }: CreatePostModalProps) {
     }
   }, [showReplyMenu])
 
-  const handlePost = () => {
-    if (!content.trim() || createPostMutation.isPending) return
-
-    if (images.length > 0) {
-      setComposerError(t("composer.unsupportedImages"))
-      return
-    }
+  const handlePost = async () => {
+    if (!content.trim() || createPostMutation.isPending || isUploading) return
 
     setComposerError(null)
-    createPostMutation.mutate({ content })
+
+    try {
+      let imageUrls: string[] = []
+
+      // Upload images if present
+      if (images.length > 0) {
+        const uploadedFiles = await startUpload(images)
+
+        if (!uploadedFiles || uploadedFiles.length === 0) {
+          setComposerError(t("composer.imageUploadError"))
+          return
+        }
+
+        imageUrls = uploadedFiles.map(file => file.ufsUrl || file.url).filter(Boolean) as string[]
+
+        if (imageUrls.length !== images.length) {
+          setComposerError(t("composer.imageUploadError"))
+          return
+        }
+      }
+
+      createPostMutation.mutate({ content, imageUrls })
+    } catch (error) {
+      console.error("Upload error:", error)
+      setComposerError(error instanceof Error ? error.message : t("composer.imageUploadError"))
+    }
   }
 
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -206,7 +241,7 @@ export function CreatePostModal({ isOpen, onClose }: CreatePostModalProps) {
 
   // Handle Cmd/Ctrl + Enter to submit
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
+    const handleKeyDown = async (e: KeyboardEvent) => {
       if (!isOpen) {
         return
       }
@@ -214,17 +249,11 @@ export function CreatePostModal({ isOpen, onClose }: CreatePostModalProps) {
       if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
         e.preventDefault()
 
-        if (!content.trim() || createPostMutation.isPending) {
+        if (!content.trim() || createPostMutation.isPending || isUploading) {
           return
         }
 
-        if (images.length > 0) {
-          setComposerError(t("composer.unsupportedImages"))
-          return
-        }
-
-        setComposerError(null)
-        createPostMutation.mutate({ content })
+        await handlePost()
       }
 
       if (e.key === "Escape") {
@@ -241,7 +270,7 @@ export function CreatePostModal({ isOpen, onClose }: CreatePostModalProps) {
 
     window.addEventListener("keydown", handleKeyDown)
     return () => window.removeEventListener("keydown", handleKeyDown)
-  }, [isOpen, content, images, createPostMutation, onClose, t])
+  }, [isOpen, content, images, createPostMutation, onClose, t, isUploading])
 
   const handleConfirmDiscard = () => {
     // If editing existing draft, delete it
@@ -494,10 +523,10 @@ export function CreatePostModal({ isOpen, onClose }: CreatePostModalProps) {
 
             <Button
               onClick={handlePost}
-              disabled={!hasContent || createPostMutation.isPending}
+              disabled={!hasContent || createPostMutation.isPending || isUploading}
               className="rounded-full px-8 py-5 font-semibold transition-all bg-foreground text-background hover:bg-foreground/90 disabled:opacity-50"
             >
-              {createPostMutation.isPending ? <Loader2 className="animate-spin w-4 h-4" /> : t("composer.post")}
+              {(createPostMutation.isPending || isUploading) ? <Loader2 className="animate-spin w-4 h-4" /> : t("composer.post")}
             </Button>
           </div>
             </>

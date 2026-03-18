@@ -1,4 +1,5 @@
-import { useMemo, useState } from "react"
+import { useMemo, useRef, useState, type CSSProperties, type ChangeEvent } from "react"
+import { useAuth } from "@clerk/clerk-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -15,8 +16,10 @@ import { useI18n } from "@/contexts/I18nContext"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import type { Comment, PaginatedResponse, Post, ProfileLink, RepostPost, User } from "@/types/api"
 import { formatRelativeTime } from "@/lib/time"
-import { UserHoverPreview } from "@/components/profile/UserHoverPreview"
-import { Link2, Pencil, Plus, Trash2 } from "lucide-react"
+import { useUploadThing } from "@/lib/uploadthing"
+import { PostCard } from "@/components/feed/PostCard"
+import { CommentThreadDialog } from "@/components/feed/CommentThreadDialog"
+import { ImagePlus, Link2, Loader2, Pencil, Plus, Trash2 } from "lucide-react"
 
 type ProfileTab = "posts" | "replies" | "reposts"
 
@@ -45,6 +48,28 @@ const TABS: { key: ProfileTab; label: string }[] = [
 ]
 
 const USERNAME_REGEX = /^[a-zA-Z0-9_.]+$/
+
+const PROFILE_EDIT_LAYOUT = {
+  widthVw: 92,
+  maxWidthPx: 620,
+  maxHeightDvh: 88,
+  bodyMaxHeightDvh: 58,
+} as const
+
+const APP_SIDEBAR_WIDTH_PX = 80
+const PROFILE_EDIT_VIEWPORT_GUTTER_PX = 24
+const PROFILE_EDIT_CENTER_OFFSET_PX = APP_SIDEBAR_WIDTH_PX / 2
+
+const PROFILE_EDIT_DIALOG_STYLE: CSSProperties = {
+  width: `min(${PROFILE_EDIT_LAYOUT.widthVw}vw, calc(100vw - ${APP_SIDEBAR_WIDTH_PX + PROFILE_EDIT_VIEWPORT_GUTTER_PX * 2}px))`,
+  maxWidth: `${PROFILE_EDIT_LAYOUT.maxWidthPx}px`,
+  maxHeight: `${PROFILE_EDIT_LAYOUT.maxHeightDvh}dvh`,
+  left: `calc(50% + ${PROFILE_EDIT_CENTER_OFFSET_PX}px)`,
+}
+
+const PROFILE_EDIT_BODY_STYLE: CSSProperties = {
+  maxHeight: `${PROFILE_EDIT_LAYOUT.bodyMaxHeightDvh}dvh`,
+}
 
 const getDisplayName = (user: User | undefined) => {
   if (!user) return "User"
@@ -95,6 +120,7 @@ const normalizeEditableLinks = (links: EditableLink[]) => {
 }
 
 export function ProfilePage() {
+  const { getToken } = useAuth()
   const { language, t } = useI18n()
   const [activeTab, setActiveTab] = useState<ProfileTab>("posts")
   const [isEditOpen, setIsEditOpen] = useState(false)
@@ -104,9 +130,25 @@ export function ProfilePage() {
   const [avatar, setAvatar] = useState("")
   const [links, setLinks] = useState<EditableLink[]>([])
   const [formError, setFormError] = useState<string | null>(null)
+  const [activeCommentPost, setActiveCommentPost] = useState<Post | null>(null)
+  const [commentDrafts, setCommentDrafts] = useState<Record<string, string>>({})
+  const avatarInputRef = useRef<HTMLInputElement>(null)
 
   const { apiFetch } = useApi()
   const queryClient = useQueryClient()
+
+  const { startUpload, isUploading: isAvatarUploading } = useUploadThing("imageUploader", {
+    headers: async () => {
+      const token = await getToken()
+      const headers: Record<string, string> = {}
+
+      if (token) {
+        headers.Authorization = `Bearer ${token}`
+      }
+
+      return headers
+    },
+  })
 
   const { data: me, isLoading, error } = useQuery<User>({
     queryKey: ["users", "me"],
@@ -150,6 +192,58 @@ export function ProfilePage() {
     },
   })
 
+  const likeMutation = useMutation({
+    mutationFn: async (payload: { postId: string; isLiked: boolean }) => {
+      const method = payload.isLiked ? "DELETE" : "POST"
+      return apiFetch(`/api/posts/${payload.postId}/like`, {
+        method,
+      })
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["posts", "feed"] })
+      queryClient.invalidateQueries({ queryKey: ["posts", "user", me?.id] })
+      queryClient.invalidateQueries({ queryKey: ["posts", "reposts", me?.id] })
+    },
+  })
+
+  const repostMutation = useMutation({
+    mutationFn: async (payload: { postId: string; isReposted: boolean }) => {
+      const method = payload.isReposted ? "DELETE" : "POST"
+      return apiFetch(`/api/posts/${payload.postId}/repost`, {
+        method,
+      })
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["posts", "feed"] })
+      queryClient.invalidateQueries({ queryKey: ["posts", "user", me?.id] })
+      queryClient.invalidateQueries({ queryKey: ["posts", "reposts", me?.id] })
+      queryClient.invalidateQueries({ queryKey: ["posts", "my-reposts", me?.id] })
+    },
+  })
+
+  const createCommentMutation = useMutation({
+    mutationFn: async (payload: { postId: string; content: string }) => {
+      return apiFetch(`/api/comments/post/${payload.postId}`, {
+        method: "POST",
+        body: JSON.stringify({
+          content: payload.content,
+        }),
+      })
+    },
+    onSuccess: (_response, variables) => {
+      setCommentDrafts((prev) => ({
+        ...prev,
+        [variables.postId]: "",
+      }))
+
+      queryClient.invalidateQueries({ queryKey: ["comments", "thread", variables.postId] })
+      queryClient.invalidateQueries({ queryKey: ["posts", "feed"] })
+      queryClient.invalidateQueries({ queryKey: ["posts", "user", me?.id] })
+      queryClient.invalidateQueries({ queryKey: ["posts", "reposts", me?.id] })
+      queryClient.invalidateQueries({ queryKey: ["comments", "user", me?.id] })
+    },
+  })
+
   const profileLinks = useMemo(() => {
     if (!me) return []
     return (me.links || me.profileLinks || []) as ProfileLink[]
@@ -158,6 +252,13 @@ export function ProfilePage() {
   const posts = postPage?.data || []
   const replies = repliesPage?.data || []
   const reposts = repostPage?.data || []
+  const activeCommentPostId = activeCommentPost?.id || null
+  const activeCommentDraft = activeCommentPostId ? (commentDrafts[activeCommentPostId] || "") : ""
+  const activeCommentPending = Boolean(
+    createCommentMutation.isPending &&
+      activeCommentPostId &&
+      createCommentMutation.variables?.postId === activeCommentPostId
+  )
 
   const followerCount = me?._count?.followers ?? me?.followerCount ?? 0
   const followingCount = me?._count?.following ?? me?.followingCount ?? 0
@@ -182,8 +283,49 @@ export function ProfilePage() {
         url: link.url,
       }))
     )
+
+    if (avatarInputRef.current) {
+      avatarInputRef.current.value = ""
+    }
+
     setFormError(null)
     setIsEditOpen(true)
+  }
+
+  const handleAvatarFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    event.target.value = ""
+
+    if (!file) {
+      return
+    }
+
+    if (!file.type.startsWith("image/")) {
+      setFormError("Vui lòng chọn file ảnh hợp lệ.")
+      return
+    }
+
+    if (file.size > 4 * 1024 * 1024) {
+      setFormError("Ảnh đại diện tối đa 4MB.")
+      return
+    }
+
+    setFormError(null)
+
+    try {
+      const uploadedFiles = await startUpload([file])
+      const uploadedFile = uploadedFiles?.[0]
+      const uploadedUrl = uploadedFile?.ufsUrl || uploadedFile?.url
+
+      if (!uploadedUrl) {
+        setFormError("Upload ảnh thất bại. Vui lòng thử lại.")
+        return
+      }
+
+      setAvatar(uploadedUrl)
+    } catch (uploadError) {
+      setFormError(uploadError instanceof Error ? uploadError.message : "Upload ảnh thất bại.")
+    }
   }
 
   const onAddLink = () => {
@@ -214,7 +356,36 @@ export function ProfilePage() {
     )
   }
 
+  const handleToggleComments = (post: Post) => {
+    setActiveCommentPost((prev) => (prev?.id === post.id ? null : post))
+  }
+
+  const handleCommentDraftChange = (postId: string, value: string) => {
+    setCommentDrafts((prev) => ({
+      ...prev,
+      [postId]: value,
+    }))
+  }
+
+  const handleCreateComment = (postId: string) => {
+    const content = (commentDrafts[postId] || "").trim()
+
+    if (!content || createCommentMutation.isPending) {
+      return
+    }
+
+    createCommentMutation.mutate({
+      postId,
+      content,
+    })
+  }
+
   const onSubmitProfile = () => {
+    if (isAvatarUploading) {
+      setFormError("Ảnh đại diện đang tải lên, vui lòng chờ hoàn tất.")
+      return
+    }
+
     const normalizedUsername = username.trim().toLowerCase()
 
     if (!normalizedUsername) {
@@ -240,11 +411,10 @@ export function ProfilePage() {
 
     const trimmedAvatar = avatar.trim()
     if (trimmedAvatar) {
-      const finalAvatar = /^https?:\/\//i.test(trimmedAvatar) ? trimmedAvatar : `https://${trimmedAvatar}`
       try {
-        new URL(finalAvatar)
+        new URL(trimmedAvatar)
       } catch {
-        setFormError("Avatar URL không hợp lệ.")
+        setFormError("Ảnh đại diện không hợp lệ. Vui lòng upload lại.")
         return
       }
     }
@@ -254,7 +424,7 @@ export function ProfilePage() {
       username: normalizedUsername,
       displayName: displayName.trim() || undefined,
       bio: bio.trim() || undefined,
-      avatar: trimmedAvatar ? (/^https?:\/\//i.test(trimmedAvatar) ? trimmedAvatar : `https://${trimmedAvatar}`) : undefined,
+      avatar: trimmedAvatar || undefined,
       links: normalizedLinks.links,
     })
   }
@@ -364,7 +534,7 @@ export function ProfilePage() {
       </div>
 
       {/* Tab Content */}
-      <div className="flex flex-col divide-y divide-border/40">
+      <div className="flex flex-col">
         {activeTab === "posts" && isPostsLoading && (
           <div className="px-5 py-8 text-sm text-muted-foreground">Đang tải bài viết...</div>
         )}
@@ -373,25 +543,39 @@ export function ProfilePage() {
           <div className="px-5 py-8 text-sm text-muted-foreground">Bạn chưa có bài viết nào.</div>
         )}
 
-        {activeTab === "posts" && posts.map((post) => (
-          <div key={post.id} className="px-5 py-4 hover:bg-muted/15 transition-colors cursor-pointer">
-            <div className="flex items-center gap-3 mb-2">
-              <Avatar className="w-8 h-8 border border-border">
-                <AvatarImage src={me.avatar || me.imageUrl || undefined} />
-                <AvatarFallback>{getDisplayName(me)[0]}</AvatarFallback>
-              </Avatar>
-              <div>
-                <span className="text-sm font-semibold">{getDisplayName(me)}</span>
-                <span className="text-xs text-muted-foreground ml-2">{formatRelativeTime(post.createdAt, language, t)}</span>
-              </div>
-            </div>
-            <p className="text-sm leading-relaxed pl-11">{post.content}</p>
-            <div className="flex items-center gap-4 mt-2 pl-11 text-xs text-muted-foreground">
-              <span>{post.likeCount} thích</span>
-              <span>{post.commentCount} bình luận</span>
-            </div>
-          </div>
-        ))}
+        {activeTab === "posts" && posts.map((post) => {
+          const isLiked = Boolean(post.isLikedByMe)
+          const isReposted = Boolean(post.isRepostedByMe)
+          const likeDisabled = likeMutation.isPending && likeMutation.variables?.postId === post.id
+          const repostDisabled = repostMutation.isPending && repostMutation.variables?.postId === post.id
+
+          return (
+            <PostCard
+              key={post.id}
+              id={post.id}
+              author={{
+                name: post.author.displayName || post.author.username || "Anonymous",
+                username: post.author.username || "unknown",
+                avatar: post.author.avatar || post.author.imageUrl || `https://ui-avatars.com/api/?name=${post.author.username || "User"}`,
+                isVerified: post.author.isVerified,
+              }}
+              content={post.content}
+              imageUrls={post.imageUrls}
+              timestamp={formatRelativeTime(post.createdAt, language, t)}
+              likes={post.likeCount}
+              comments={post.commentCount}
+              hasReply={false}
+              isLiked={isLiked}
+              likeDisabled={Boolean(likeDisabled)}
+              onToggleLike={() => likeMutation.mutate({ postId: post.id, isLiked })}
+              commentsOpen={activeCommentPost?.id === post.id}
+              onToggleComments={() => handleToggleComments(post)}
+              isReposted={isReposted}
+              repostDisabled={Boolean(repostDisabled)}
+              onToggleRepost={() => repostMutation.mutate({ postId: post.id, isReposted })}
+            />
+          )
+        })}
 
         {activeTab === "replies" && isRepliesLoading && (
           <div className="px-5 py-8 text-sm text-muted-foreground">Đang tải trả lời...</div>
@@ -402,26 +586,27 @@ export function ProfilePage() {
         )}
 
         {activeTab === "replies" && replies.map((reply) => (
-          <div key={reply.id} className="px-5 py-4 hover:bg-muted/15 transition-colors">
-            <div className="flex items-center gap-3 mb-2">
-              <Avatar className="w-8 h-8 border border-border">
-                <AvatarImage src={me.avatar || me.imageUrl || undefined} />
-                <AvatarFallback>{getDisplayName(me)[0]}</AvatarFallback>
-              </Avatar>
-              <div>
-                <span className="text-sm font-semibold">{getDisplayName(me)}</span>
-                <span className="text-xs text-muted-foreground ml-2">{formatRelativeTime(reply.createdAt, language, t)}</span>
-              </div>
-            </div>
-            <p className="text-sm leading-relaxed pl-11">{reply.content}</p>
+          <div key={reply.id}>
+            <PostCard
+              id={reply.id}
+              author={{
+                name: reply.author.displayName || reply.author.username || "Anonymous",
+                username: reply.author.username || "unknown",
+                avatar: reply.author.avatar || reply.author.imageUrl || `https://ui-avatars.com/api/?name=${reply.author.username || "User"}`,
+                isVerified: reply.author.isVerified,
+              }}
+              content={reply.content}
+              timestamp={formatRelativeTime(reply.createdAt, language, t)}
+              likes={reply.likeCount}
+              comments={0}
+              hasReply={false}
+              showActions={false}
+            />
             {reply.post?.content && (
-              <p className="text-xs text-muted-foreground pl-11 mt-1 line-clamp-1">
+              <p className="px-16 pb-3 text-xs text-muted-foreground line-clamp-1">
                 Trả lời bài viết: {reply.post.content}
               </p>
             )}
-            <div className="flex items-center gap-4 mt-2 pl-11 text-xs text-muted-foreground">
-              <span>{reply.likeCount} thích</span>
-            </div>
           </div>
         ))}
 
@@ -433,47 +618,85 @@ export function ProfilePage() {
           <div className="px-5 py-8 text-sm text-muted-foreground">Bạn chưa có bài đăng lại nào.</div>
         )}
 
-        {activeTab === "reposts" && reposts.map((repost) => (
-          <div key={repost.repostId} className="px-5 py-4 hover:bg-muted/15 transition-colors">
-            <p className="text-xs text-muted-foreground mb-2">
-              Đăng lại lúc {formatRelativeTime(repost.repostedAt, language, t)}
-            </p>
-            <div className="flex items-center gap-3 mb-2">
-              <Avatar className="w-8 h-8 border border-border">
-                <AvatarImage src={repost.author.imageUrl || undefined} />
-                <AvatarFallback>{(repost.author.displayName || repost.author.username || "U")[0]}</AvatarFallback>
-              </Avatar>
-              <div>
-                <UserHoverPreview
-                  username={repost.author.username || "unknown"}
-                  fallbackName={repost.author.displayName || repost.author.username || "Unknown"}
-                  className="text-sm font-semibold hover:underline cursor-pointer"
-                />
-                <span className="text-xs text-muted-foreground ml-2">@{repost.author.username}</span>
-              </div>
+        {activeTab === "reposts" && reposts.map((repost) => {
+          const isLiked = Boolean(repost.isLikedByMe)
+          const isReposted = Boolean(repost.isRepostedByMe)
+          const likeDisabled = likeMutation.isPending && likeMutation.variables?.postId === repost.id
+          const repostDisabled = repostMutation.isPending && repostMutation.variables?.postId === repost.id
+
+          return (
+            <div key={repost.repostId}>
+              <p className="px-6 pt-3 pb-1 text-xs text-muted-foreground">
+                Đăng lại lúc {formatRelativeTime(repost.repostedAt, language, t)}
+              </p>
+              <PostCard
+                id={repost.id}
+                author={{
+                  name: repost.author.displayName || repost.author.username || "Anonymous",
+                  username: repost.author.username || "unknown",
+                  avatar: repost.author.avatar || repost.author.imageUrl || `https://ui-avatars.com/api/?name=${repost.author.username || "User"}`,
+                  isVerified: repost.author.isVerified,
+                }}
+                content={repost.content}
+                imageUrls={repost.imageUrls}
+                timestamp={formatRelativeTime(repost.createdAt, language, t)}
+                likes={repost.likeCount}
+                comments={repost.commentCount}
+                hasReply={false}
+                isLiked={isLiked}
+                likeDisabled={Boolean(likeDisabled)}
+                onToggleLike={() => likeMutation.mutate({ postId: repost.id, isLiked })}
+                commentsOpen={activeCommentPost?.id === repost.id}
+                onToggleComments={() => handleToggleComments(repost)}
+                isReposted={isReposted}
+                repostDisabled={Boolean(repostDisabled)}
+                onToggleRepost={() => repostMutation.mutate({ postId: repost.id, isReposted })}
+              />
             </div>
-            <p className="text-sm leading-relaxed pl-11">{repost.content}</p>
-            <div className="flex items-center gap-4 mt-2 pl-11 text-xs text-muted-foreground">
-              <span>{repost.likeCount} thích</span>
-              <span>{repost.commentCount} bình luận</span>
-            </div>
-          </div>
-        ))}
+          )
+        })}
 
         <div className="h-16" />
       </div>
+
+      <CommentThreadDialog
+        isOpen={Boolean(activeCommentPost)}
+        post={activeCommentPost}
+        draft={activeCommentDraft}
+        isSubmitting={activeCommentPending}
+        onOpenChange={(open) => {
+          if (!open) {
+            setActiveCommentPost(null)
+          }
+        }}
+        onDraftChange={(value) => {
+          if (!activeCommentPostId) {
+            return
+          }
+          handleCommentDraftChange(activeCommentPostId, value)
+        }}
+        onSubmit={() => {
+          if (!activeCommentPostId) {
+            return
+          }
+          handleCreateComment(activeCommentPostId)
+        }}
+      />
     </div>
 
     <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
-      <DialogContent className="sm:max-w-[600px] rounded-2xl border-2 border-border">
-        <DialogHeader>
+      <DialogContent
+        className="overflow-hidden rounded-[28px] border-2 border-border bg-card p-0 shadow-2xl"
+        style={PROFILE_EDIT_DIALOG_STYLE}
+      >
+        <DialogHeader className="border-b border-border/50 px-6 py-4">
           <DialogTitle>Chỉnh sửa trang cá nhân</DialogTitle>
           <DialogDescription>
             Cập nhật thông tin hồ sơ công khai của bạn.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4 max-h-[62vh] overflow-y-auto pr-1">
+        <div className="space-y-4 overflow-y-auto px-6 py-5" style={PROFILE_EDIT_BODY_STYLE}>
           <div className="space-y-2">
             <label className="text-sm font-medium">Username *</label>
             <Input
@@ -508,12 +731,53 @@ export function ProfilePage() {
           </div>
 
           <div className="space-y-2">
-            <label className="text-sm font-medium">Avatar URL</label>
-            <Input
-              value={avatar}
-              onChange={(event) => setAvatar(event.target.value)}
-              placeholder="https://..."
-            />
+            <label className="text-sm font-medium">Ảnh đại diện</label>
+            <div className="flex items-center gap-3 rounded-xl border border-border/70 bg-muted/20 px-3 py-3">
+              <Avatar className="h-14 w-14 border border-border">
+                <AvatarImage
+                  src={avatar.trim() ? avatar.trim() : (me.avatar || me.imageUrl || undefined)}
+                />
+                <AvatarFallback>{getDisplayName(me)[0]}</AvatarFallback>
+              </Avatar>
+
+              <div className="min-w-0 flex-1">
+                <p className="text-xs text-muted-foreground">Upload ảnh JPG, PNG, WEBP tối đa 4MB.</p>
+
+                <input
+                  ref={avatarInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleAvatarFileChange}
+                  className="hidden"
+                />
+
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="gap-2"
+                    onClick={() => avatarInputRef.current?.click()}
+                    disabled={isAvatarUploading}
+                  >
+                    {isAvatarUploading ? <Loader2 size={14} className="animate-spin" /> : <ImagePlus size={14} />}
+                    {isAvatarUploading ? "Đang tải ảnh..." : "Tải ảnh đại diện"}
+                  </Button>
+
+                  {avatar.trim() && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setAvatar("")}
+                      disabled={isAvatarUploading}
+                    >
+                      Gỡ ảnh
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </div>
           </div>
 
           <div className="space-y-2">
@@ -571,12 +835,16 @@ export function ProfilePage() {
           )}
         </div>
 
-        <DialogFooter>
+        <DialogFooter className="border-t border-border/50 px-6 py-4">
           <Button type="button" variant="outline" onClick={() => setIsEditOpen(false)}>
             Hủy
           </Button>
-          <Button type="button" onClick={onSubmitProfile} disabled={updateProfileMutation.isPending}>
-            {updateProfileMutation.isPending ? "Đang lưu..." : "Lưu thay đổi"}
+          <Button
+            type="button"
+            onClick={onSubmitProfile}
+            disabled={updateProfileMutation.isPending || isAvatarUploading}
+          >
+            {isAvatarUploading ? "Đang tải ảnh..." : updateProfileMutation.isPending ? "Đang lưu..." : "Lưu thay đổi"}
           </Button>
         </DialogFooter>
       </DialogContent>

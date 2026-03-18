@@ -37,3 +37,6 @@ Then set:
   - POST /api/webhooks/clerk
 - Uploadthing endpoint base:
   - /api/uploadthing
+- Uploadthing env:
+   - Prefer `UPLOADTHING_TOKEN`.
+   - Legacy `UPLOADTHING_SECRET` is still accepted as fallback in this project.

@@ -12,6 +12,7 @@ import {
 import {
   createPost,
   deletePost,
+  type FeedFilter,
   getFeed,
   getPostsByUser,
   getRepostsByUser,
@@ -40,11 +41,15 @@ router.get(
   "/feed",
   asyncHandler(async (req, res) => {
     const userId = getAuthUserId(req);
+    const feedFilter: FeedFilter =
+      typeof req.query.filter === "string" && req.query.filter.toLowerCase() === "following"
+        ? "following"
+        : "foryou";
     const { cursor, limit } = getPagination({
       cursor: req.query.cursor as string | undefined,
       limit: req.query.limit as string | undefined,
     });
-    const data = await getFeed(userId, cursor, limit);
+    const data = await getFeed(userId, cursor, limit, feedFilter);
     res.json(data);
   })
 );
@@ -53,12 +58,13 @@ router.get(
   "/user/:userId",
   validate(userPostParamSchema),
   asyncHandler(async (req, res) => {
+    const viewerUserId = getAuthUserId(req);
     const { cursor, limit } = getPagination({
       cursor: req.query.cursor as string | undefined,
       limit: req.query.limit as string | undefined,
     });
     const targetUserId = String(req.params.userId);
-    const data = await getPostsByUser(targetUserId, cursor, limit);
+    const data = await getPostsByUser(targetUserId, viewerUserId, cursor, limit);
     res.json(data);
   })
 );
@@ -67,12 +73,13 @@ router.get(
   "/user/:userId/reposts",
   validate(userPostParamSchema),
   asyncHandler(async (req, res) => {
+    const viewerUserId = getAuthUserId(req);
     const { cursor, limit } = getPagination({
       cursor: req.query.cursor as string | undefined,
       limit: req.query.limit as string | undefined,
     });
     const targetUserId = String(req.params.userId);
-    const data = await getRepostsByUser(targetUserId, cursor, limit);
+    const data = await getRepostsByUser(targetUserId, viewerUserId, cursor, limit);
     res.json(data);
   })
 );

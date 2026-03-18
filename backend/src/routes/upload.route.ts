@@ -5,6 +5,7 @@ import { uploadRouter } from "../lib/uploadthing";
 
 const router = express.Router();
 
+// Apply Clerk auth middleware so uploadthing middleware can access req.auth
 router.use(ClerkExpressWithAuth() as any);
 
 router.use(
