@@ -821,7 +821,7 @@ export function ProfilePage() {
               showActions={false}
             />
             {reply.post?.content && (
-              <p className="px-16 pb-3 text-xs text-muted-foreground line-clamp-1">
+              <p className="px-16 pt-1.5 pb-3 text-xs leading-relaxed text-muted-foreground break-words line-clamp-2">
                 {t("profile.replies.targetPost", { content: reply.post.content })}
               </p>
             )}
