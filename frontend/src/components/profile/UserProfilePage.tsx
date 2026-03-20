@@ -202,7 +202,9 @@ export function UserProfilePage({ username, onBack }: UserProfilePageProps) {
 
       if (previousMe) {
         const baseFollowingCount = previousMe._count?.following ?? previousMe.followingCount ?? 0
-        const nextFollowingCount = Math.max(0, baseFollowingCount + (shouldFollow ? 1 : -1))
+        const currentlyFollowing = Boolean(previousProfile?.isFollowing)
+        const followingDelta = shouldFollow === currentlyFollowing ? 0 : shouldFollow ? 1 : -1
+        const nextFollowingCount = Math.max(0, baseFollowingCount + followingDelta)
 
         queryClient.setQueryData<User>(["users", "me"], {
           ...previousMe,
@@ -339,6 +341,7 @@ export function UserProfilePage({ username, onBack }: UserProfilePageProps) {
   const followerCount = profile._count?.followers ?? profile.followerCount ?? 0
   const followingCount = profile._count?.following ?? profile.followingCount ?? 0
   const isFollowing = Boolean(profile.isFollowing)
+  const isOwnProfile = Boolean(me?.id && me.id === profile.id)
 
   return (
     <div className="flex flex-col w-full">
@@ -371,7 +374,7 @@ export function UserProfilePage({ username, onBack }: UserProfilePageProps) {
             variant={isFollowing ? "outline" : "default"}
             className="rounded-full px-4"
             onClick={() => followMutation.mutate(!isFollowing)}
-            disabled={followMutation.isPending}
+            disabled={followMutation.isPending || isOwnProfile}
           >
             {isFollowing ? t("search.following") : t("search.follow")}
           </Button>
@@ -428,7 +431,7 @@ export function UserProfilePage({ username, onBack }: UserProfilePageProps) {
                 isReposted: Boolean(post.isRepostedByMe),
               })
             }
-            canDelete={Boolean(me?.id && post.authorId === me.id)}
+            canDelete={false}
           />
         ))}
 

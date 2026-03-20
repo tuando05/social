@@ -74,7 +74,11 @@ export function SearchPage() {
 
       if (previousMe) {
         const baseFollowingCount = previousMe._count?.following ?? previousMe.followingCount ?? 0
-        const nextFollowingCount = Math.max(0, baseFollowingCount + (shouldFollow ? 1 : -1))
+        const currentlyFollowing = previousQueries.some(([, data]) =>
+          Boolean(data?.users.some((item) => item.id === userId && Boolean(item.isFollowing)))
+        )
+        const followingDelta = shouldFollow === currentlyFollowing ? 0 : shouldFollow ? 1 : -1
+        const nextFollowingCount = Math.max(0, baseFollowingCount + followingDelta)
 
         queryClient.setQueryData<User>(["users", "me"], {
           ...previousMe,
