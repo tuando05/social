@@ -1,73 +1,63 @@
-# React + TypeScript + Vite
+# Paper Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Frontend cho dự án Paper, xây dựng bằng React + Vite + TypeScript.
 
-Currently, two official plugins are available:
+## Công nghệ chính
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- React 19
+- Vite 8
+- TypeScript
+- Tailwind CSS v4 + Shadcn/UI
+- TanStack Query
+- Clerk (authentication)
+- Uploadthing
 
-## React Compiler
+## Cấu hình môi trường
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+1. Tạo file `.env` từ mẫu:
 
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+copy .env.example .env
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+2. Cập nhật các biến cần thiết:
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+- `VITE_CLERK_PUBLISHABLE_KEY`: publishable key từ Clerk Dashboard
+- `VITE_API_URL`: URL backend API (ví dụ: `http://localhost:5000`)
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+## Chạy local
+
+```bash
+npm install
+npm run dev
 ```
+
+App mặc định chạy tại `http://localhost:5173`.
+
+## Scripts
+
+- `npm run dev`: chạy môi trường dev
+- `npm run build`: build production
+- `npm run lint`: kiểm tra eslint
+- `npm run preview`: chạy preview bản build
+
+## Build production
+
+```bash
+npm run build
+npm run preview
+```
+
+## Cấu trúc đáng chú ý
+
+- `src/components`: UI components theo feature
+- `src/contexts`: theme và i18n
+- `src/hooks`: custom hooks (API, local storage, profile)
+- `src/lib`: helper utilities
+- `src/types`: type dùng chung cho API
+
+## Ghi chú
+
+- Frontend dùng Clerk để quản lý phiên đăng nhập.
+- Data fetching và cache được quản lý bởi TanStack Query.
+- Theme và ngôn ngữ được lưu qua localStorage.

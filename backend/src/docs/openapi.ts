@@ -1,9 +1,9 @@
 export const openApiDocument = {
   openapi: "3.0.3",
   info: {
-    title: "Social Backend API",
+    title: "Paper Backend API",
     version: "1.0.0",
-    description: "Express + Prisma + Clerk backend for social app starter.",
+    description: "Express + Prisma + Clerk backend for paper app starter.",
   },
   servers: [
     {

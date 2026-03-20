@@ -1,8 +1,8 @@
 {
   "info": {
-    "name": "Social Backend API",
+    "name": "Paper Backend API",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
-    "description": "Collection for testing Social backend endpoints."
+    "description": "Collection for testing Paper backend endpoints."
   },
   "item": [
     {

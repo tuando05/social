@@ -1,85 +1,100 @@
-# Social App Starter (React + Express + TypeScript)
+# Paper App Starter (React + Express + TypeScript)
 
-Dự án này là bộ khung (starter kit) cho một ứng dụng mạng xã hội hiện đại, sử dụng full-stack TypeScript với các công cụ mạnh mẽ nhất.
+Paper là starter kit full-stack cho ứng dụng mạng xã hội, gồm frontend React và backend Express, cùng dùng TypeScript.
 
-## 🚀 Công nghệ sử dụng
+## Công nghệ chính
 
-### Frontend (Thư mục `/frontend`)
-- **Framework:** React + Vite
-- **Styling:** Tailwind CSS v4 + Shadcn/UI
-- **Ngôn ngữ:** TypeScript
-- **State Management:** TanStack Query (React Query)
-- **Authentication:** Clerk
-- **Realtime:** Pusher Client
-- **File Upload:** Uploadthing
+### Frontend (`/frontend`)
+- React 19 + Vite
+- TypeScript
+- Tailwind CSS v4 + Shadcn/UI
+- TanStack Query
+- Clerk (auth)
+- Uploadthing
 
-### Backend (Thư mục `/backend`)
-- **Framework:** Express.js
-- **Database ORM:** Prisma 7 + Supabase (PostgreSQL)
-- **Driver Adapter:** `@prisma/adapter-pg` (Bắt buộc cho Prisma 7 trên Node.js)
-- **Authentication:** Clerk Node SDK
-- **Webhooks:** Svix (xác thực Clerk Webhooks)
-- **Realtime:** Pusher Server
-- **File Upload:** Uploadthing
+### Backend (`/backend`)
+- Express 5
+- Prisma 7 + PostgreSQL (Supabase)
+- Clerk SDK + Webhook (Svix)
+- Uploadthing
+- Swagger/OpenAPI
 
----
+## Cấu trúc thư mục
 
-## 🛠 Hướng dẫn cài đặt
+```text
+.
+|- backend/
+|- frontend/
+`- README.md
+```
+
+## Cài đặt nhanh
 
 ### 1. Chuẩn bị biến môi trường
-Mỗi thư mục `/frontend` và `/backend` đều cần file `.env`. 
 
-**Tại thư mục `/backend`:**
-Tạo file `.env` từ `.env.example` và điền các thông tin từ:
-- [Supabase](https://supabase.com/) (Sử dụng cổng 6543 cho `DATABASE_URL` và 5432 cho `DIRECT_URL`)
-- [Clerk Dashboard](https://dashboard.clerk.com/) (Secret Key & Webhook Secret)
-- [Uploadthing](https://uploadthing.com/) (Secret & App Id)
-- [Pusher](https://pusher.com/) (App Id, Key, Secret, Cluster)
+Tạo file `.env` từ file mẫu:
 
-### 2. Cài đặt Dependencies
-Mở 2 terminal riêng biệt:
+```bash
+copy backend\.env.example backend\.env
+copy frontend\.env.example frontend\.env
+```
 
-**Terminal 1 (Backend):**
+Điền đầy đủ key theo provider (Supabase, Clerk, Uploadthing, Pusher).
+
+### 2. Cài dependencies
+
 ```bash
 cd backend
 npm install
-npx prisma generate
+
+cd ..\frontend
+npm install
 ```
 
-**Terminal 2 (Frontend):**
+### 3. Khởi tạo database
+
+```bash
+cd ..\backend
+npm run prisma:generate
+npm run db:push
+```
+
+### 4. Chạy local (2 terminal)
+
+Terminal 1:
+
+```bash
+cd backend
+npm run dev
+```
+
+Terminal 2:
+
 ```bash
 cd frontend
-npm install
+npm run dev
 ```
 
-### 3. Đồng bộ Database
-Khi đã có Database URL trong file `.env` của backend, thực hiện đẩy cấu trúc bảng lên Supabase:
-```bash
-cd backend
-npx prisma db push
-```
+- Backend: `http://localhost:5000`
+- Frontend: `http://localhost:5173`
 
-### 4. Khởi chạy dự án
-Chạy cả hai cùng lúc để bắt đầu code:
+## Scripts thường dùng
 
-**Backend:** `cd backend && npm run dev` (Chạy tại port 5000)
-**Frontend:** `cd frontend && npm run dev` (Chạy tại port 5173/5174)
+### Backend
+- `npm run dev`: chạy backend dev
+- `npm run build`: build TypeScript
+- `npm run start`: chạy bản build
+- `npm run db:push`: sync schema
+- `npm run db:seed`: seed dữ liệu mẫu
+- `npm run test`: chạy test
 
----
+### Frontend
+- `npm run dev`: chạy frontend dev
+- `npm run build`: build frontend
+- `npm run lint`: kiểm tra eslint
+- `npm run preview`: preview bản build
 
-## 🔒 Lưu ý quan trọng
+## Tài liệu chi tiết
 
-### 🎨 Tailwind CSS v4 & Shadcn/UI
-- Dự án sử dụng **Tailwind CSS v4**. Cấu hình chính nằm trong `src/index.css` sử dụng các chỉ thị `@theme`.
-- **Shadcn/UI** đã được cấu hình với path alias `@/`. Để thêm component mới, hãy dùng lệnh:
-  ```bash
-  npx shadcn@latest add [component-name]
-  ```
-
-### 🗄 Prisma 7 & Driver Adapter
-- Prisma 7 yêu cầu khởi tạo với Driver Adapter. Chúng ta sử dụng `@prisma/adapter-pg`. 
-- Cấu hình khởi tạo nằm tại `src/lib/prisma.ts`. Nếu bạn thay đổi model, hãy nhớ chạy `npx prisma generate`.
-
-### 🔄 Clerk Webhooks
-- Để đồng bộ User từ Clerk về Database, bạn cần cấu hình URL Webhook trên Clerk Dashboard trỏ về endpoint: `[YOUR_DOMAIN]/api/webhooks/clerk`.
-- Sử dụng `ngrok` để test webhook ở môi trường local.
+- Backend: xem `backend/README.md`
+- Frontend: xem `frontend/README.md`

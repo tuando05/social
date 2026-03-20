@@ -1,42 +1,77 @@
-# Backend Quick Start
+# Paper Backend
 
-## Run
+Backend API cho dự án Paper, xây dựng bằng Express + Prisma + TypeScript.
 
-1. Install packages:
-   - npm install
-2. Generate Prisma client:
-   - npm run prisma:generate
-3. Push schema to database:
-   - npm run db:push
-4. Optional seed data:
-   - npm run db:seed
-5. Start dev server:
-   - npm run dev
+## Yêu cầu
+
+- Node.js 20+
+- PostgreSQL (khuyến nghị Supabase)
+
+## Cấu hình môi trường
+
+1. Tạo file `.env` từ mẫu:
+
+```bash
+copy .env.example .env
+```
+
+2. Cập nhật các biến quan trọng:
+
+- `PORT`
+- `FRONTEND_ORIGIN`
+- `DATABASE_URL`
+- `DIRECT_URL`
+- `CLERK_SECRET_KEY`
+- `CLERK_PUBLISHABLE_KEY`
+- `CLERK_WEBHOOK_SECRET`
+- `PUSHER_APP_ID`, `PUSHER_KEY`, `PUSHER_SECRET`, `PUSHER_CLUSTER`
+- `UPLOADTHING_TOKEN` (ưu tiên)
+
+## Chạy local
+
+```bash
+npm install
+npm run prisma:generate
+npm run db:push
+npm run dev
+```
+
+Server mặc định chạy tại `http://localhost:5000`.
+
+## Scripts
+
+- `npm run dev`: chạy dev với nodemon
+- `npm run build`: build TypeScript
+- `npm run start`: chạy bản build trong `dist`
+- `npm run prisma:generate`: generate Prisma client
+- `npm run db:push`: đẩy schema lên DB
+- `npm run db:seed`: seed dữ liệu mẫu
+- `npm run db:backfill-usernames`: backfill username cho user cũ
+- `npm run test`: chạy test 1 lần
+- `npm run test:watch`: chạy test chế độ watch
 
 ## API Docs
 
-- Swagger UI: http://localhost:5000/api/docs
-- OpenAPI JSON: http://localhost:5000/api/docs/json
+- Swagger UI: `http://localhost:5000/api/docs`
+- OpenAPI JSON: `http://localhost:5000/api/docs/json`
 
 ## Postman
 
-Import both files in postman/:
+Import 2 file trong thư mục `postman/`:
 
-- social-backend.postman_collection.json
-- social-backend.postman_environment.json
+- `paper-backend.postman_collection.json`
+- `paper-backend.postman_environment.json`
 
-Then set:
+Sau đó thiết lập biến môi trường trong Postman:
 
-- clerkToken: your Clerk Bearer token
-- targetUserId, postId for route variables
+- `baseUrl`
+- `clerkToken`
+- `targetUserId`
+- `postId`
 
-## Notes
+## Ghi chú
 
-- All user-facing routes require auth.
-- Webhook endpoint:
-  - POST /api/webhooks/clerk
-- Uploadthing endpoint base:
-  - /api/uploadthing
-- Uploadthing env:
-   - Prefer `UPLOADTHING_TOKEN`.
-   - Legacy `UPLOADTHING_SECRET` is still accepted as fallback in this project.
+- Hầu hết endpoint user-facing yêu cầu Bearer token từ Clerk.
+- Webhook Clerk: `POST /api/webhooks/clerk`
+- Uploadthing endpoint base: `/api/uploadthing`
+- `UPLOADTHING_SECRET` vẫn được hỗ trợ để tương thích ngược.

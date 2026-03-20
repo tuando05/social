@@ -123,7 +123,7 @@ async function main() {
   const post1 = await prisma.post.create({
     data: {
       authorId: minh.id,
-      content: "Mình vừa hoàn thành dự án social media app với React + Node.js! 🎉 Ai có kinh nghiệm về real-time notifications thì share cho mình với nhé!",
+      content: "Mình vừa hoàn thành dự án Paper với React + Node.js! 🎉 Ai có kinh nghiệm về real-time notifications thì share cho mình với nhé!",
       likeCount: 15,
       commentCount: 5,
     },
