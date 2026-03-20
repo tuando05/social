@@ -12,6 +12,10 @@ type ProfilePreviewResponse = User & {
   isFollowing?: boolean
 }
 
+type SearchUsersResponse = {
+  users: (User & { isFollowing?: boolean })[]
+}
+
 type UserHoverPreviewProps = {
   username: string
   fallbackName: string
@@ -115,13 +119,23 @@ export function UserHoverPreview({
         method: nextFollowState ? "POST" : "DELETE",
       })
     },
-    onMutate: (nextFollowState) => {
+    onMutate: async (nextFollowState) => {
+      await queryClient.cancelQueries({ queryKey: ["users", "preview", username] })
+      await queryClient.cancelQueries({ queryKey: ["search", "users"] })
+      await queryClient.cancelQueries({ queryKey: ["users", "me"] })
+
+      const previousProfile = queryClient.getQueryData<ProfilePreviewResponse | undefined>([
+        "users",
+        "preview",
+        username,
+      ])
+      const previousSearchQueries = queryClient.getQueriesData<SearchUsersResponse>({
+        queryKey: ["search", "users"],
+      })
+      const previousMe = queryClient.getQueryData<User>(["users", "me"])
+
       setOptimisticFollow(nextFollowState)
-    },
-    onError: () => {
-      setOptimisticFollow(null)
-    },
-    onSuccess: (_response, nextFollowState) => {
+
       queryClient.setQueryData<ProfilePreviewResponse | undefined>(
         ["users", "preview", username],
         (previous) => {
@@ -148,9 +162,80 @@ export function UserHoverPreview({
         }
       )
 
-      queryClient.invalidateQueries({ queryKey: ["users", "followers"], refetchType: "inactive" })
-      queryClient.invalidateQueries({ queryKey: ["users", "following"], refetchType: "inactive" })
-      queryClient.invalidateQueries({ queryKey: ["search", "users"], refetchType: "inactive" })
+      for (const [cacheKey, data] of previousSearchQueries) {
+        if (!data) {
+          continue
+        }
+
+        queryClient.setQueryData<SearchUsersResponse>(cacheKey, {
+          users: data.users.map((user) => {
+            if (user.username !== username) {
+              return user
+            }
+
+            const previousFollowerCount = user._count?.followers ?? user.followerCount ?? 0
+            const previousFollowState = Boolean(user.isFollowing)
+            const followerDelta = nextFollowState === previousFollowState ? 0 : nextFollowState ? 1 : -1
+            const nextFollowerCount = Math.max(0, previousFollowerCount + followerDelta)
+
+            return {
+              ...user,
+              isFollowing: nextFollowState,
+              followerCount: nextFollowerCount,
+              _count: user._count
+                ? {
+                    ...user._count,
+                    followers: nextFollowerCount,
+                  }
+                : user._count,
+            }
+          }),
+        })
+      }
+
+      if (previousMe) {
+        const previousFollowingCount = previousMe._count?.following ?? previousMe.followingCount ?? 0
+        const previousFollowState = Boolean(previousProfile?.isFollowing)
+        const followingDelta = nextFollowState === previousFollowState ? 0 : nextFollowState ? 1 : -1
+        const nextFollowingCount = Math.max(0, previousFollowingCount + followingDelta)
+
+        queryClient.setQueryData<User>(["users", "me"], {
+          ...previousMe,
+          followingCount: nextFollowingCount,
+          _count: previousMe._count
+            ? {
+                ...previousMe._count,
+                following: nextFollowingCount,
+              }
+            : previousMe._count,
+        })
+      }
+
+      return { previousProfile, previousSearchQueries, previousMe }
+    },
+    onError: (_error, _nextFollowState, context) => {
+      setOptimisticFollow(null)
+
+      if (!context) {
+        return
+      }
+
+      queryClient.setQueryData(["users", "preview", username], context.previousProfile)
+
+      for (const [cacheKey, data] of context.previousSearchQueries ?? []) {
+        queryClient.setQueryData(cacheKey, data)
+      }
+
+      if (context.previousMe) {
+        queryClient.setQueryData(["users", "me"], context.previousMe)
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["users", "followers"], refetchType: "active" })
+      queryClient.invalidateQueries({ queryKey: ["users", "following"], refetchType: "active" })
+      queryClient.invalidateQueries({ queryKey: ["search", "users"], refetchType: "active" })
+      queryClient.invalidateQueries({ queryKey: ["users", "me"], refetchType: "active" })
+      queryClient.invalidateQueries({ queryKey: ["users", "preview", username], refetchType: "active" })
     },
     onSettled: () => {
       setOptimisticFollow(null)

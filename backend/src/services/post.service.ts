@@ -252,7 +252,7 @@ export const getRepostsByUser = async (
 export const repostPost = async (userId: string, postId: string) => {
   const post = await prisma.post.findUnique({
     where: { id: postId },
-    select: { id: true },
+    select: { id: true, authorId: true },
   });
 
   if (!post) {
@@ -266,6 +266,33 @@ export const repostPost = async (userId: string, postId: string) => {
         postId,
       },
     });
+
+    // Keep repost functional even if notification persistence fails (e.g. enum not migrated yet).
+    if (post.authorId !== userId) {
+      try {
+        await prisma.notification.create({
+          data: {
+            recipientId: post.authorId,
+            actorId: userId,
+            type: "REPOST" as any,
+            postId,
+          },
+        });
+      } catch (error) {
+        console.error("Failed to create repost notification", error);
+      }
+    }
+
+    if (post.authorId !== userId) {
+      try {
+        await pusherServer.trigger(`private-user-${post.authorId}`, "post:reposted", {
+          postId,
+          userId,
+        });
+      } catch (error) {
+        console.error("Failed to publish repost realtime event", error);
+      }
+    }
 
     return {
       success: true,

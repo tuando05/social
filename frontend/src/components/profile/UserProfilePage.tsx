@@ -1,26 +1,105 @@
-import { useMemo } from "react"
+import { useCallback, useMemo, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
-import { Loader2 } from "lucide-react"
+import { ArrowLeft, Loader2 } from "lucide-react"
 import { useApi } from "@/hooks/useApi"
 import { useI18n } from "@/contexts/I18nContext"
 import { formatRelativeTime } from "@/lib/time"
 import type { PaginatedResponse, Post, User } from "@/types/api"
 import { PostCard } from "@/components/feed/PostCard"
+import { CommentThreadDialog } from "@/components/feed/CommentThreadDialog"
+import { useCurrentUserProfile } from "@/hooks/useCurrentUserProfile"
 
 type UserProfilePageProps = {
   username: string
+  onBack?: () => void
 }
 
 type ProfilePreviewResponse = User & {
   isFollowing?: boolean
 }
 
-export function UserProfilePage({ username }: UserProfilePageProps) {
+type SearchUsersResponse = {
+  users: (User & { isFollowing?: boolean })[]
+}
+
+export function UserProfilePage({ username, onBack }: UserProfilePageProps) {
   const { apiFetch } = useApi()
   const { language, t } = useI18n()
+  const { data: me } = useCurrentUserProfile()
   const queryClient = useQueryClient()
+  const [activeCommentPost, setActiveCommentPost] = useState<Post | null>(null)
+  const [commentDrafts, setCommentDrafts] = useState<Record<string, string>>({})
+
+  const patchPostAcrossCaches = useCallback(
+    (postId: string, updater: (post: Post) => Post) => {
+      queryClient.setQueriesData({ queryKey: ["posts"] }, (current) => {
+        if (!current || typeof current !== "object") {
+          return current
+        }
+
+        const patchPage = (page: PaginatedResponse<Post>) => {
+          if (!Array.isArray(page.data)) {
+            return { page, changed: false }
+          }
+
+          let changed = false
+          const nextData = page.data.map((post) => {
+            if (post.id !== postId) {
+              return post
+            }
+
+            changed = true
+            return updater(post)
+          })
+
+          return {
+            page: changed
+              ? {
+                  ...page,
+                  data: nextData,
+                }
+              : page,
+            changed,
+          }
+        }
+
+        const singlePage = current as PaginatedResponse<Post>
+        if (Array.isArray(singlePage.data)) {
+          const { page, changed } = patchPage(singlePage)
+          return changed ? page : current
+        }
+
+        const infinitePages = current as {
+          pages?: PaginatedResponse<Post>[]
+          pageParams?: unknown[]
+        }
+
+        if (!Array.isArray(infinitePages.pages)) {
+          return current
+        }
+
+        let changed = false
+        const nextPages = infinitePages.pages.map((page) => {
+          const patched = patchPage(page)
+          if (patched.changed) {
+            changed = true
+          }
+
+          return patched.page
+        })
+
+        return changed
+          ? {
+              ...infinitePages,
+              pages: nextPages,
+            }
+          : current
+      })
+    },
+    [queryClient]
+  )
 
   const {
     data: profile,
@@ -53,36 +132,29 @@ export function UserProfilePage({ username }: UserProfilePageProps) {
       })
     },
     onMutate: async (shouldFollow) => {
+      await queryClient.cancelQueries({ queryKey: ["users", "preview", username] })
+      await queryClient.cancelQueries({ queryKey: ["search", "users"] })
+      await queryClient.cancelQueries({ queryKey: ["users", "me"] })
+
+      const previousProfile = queryClient.getQueryData<ProfilePreviewResponse | undefined>([
+        "users",
+        "preview",
+        username,
+      ])
+      const previousSearchQueries = queryClient.getQueriesData<SearchUsersResponse>({
+        queryKey: ["search", "users"],
+      })
       const previousMe = queryClient.getQueryData<User>(["users", "me"])
 
-      if (!previousMe) {
-        return { previousMe }
-      }
-
-      const baseFollowingCount = previousMe._count?.following ?? previousMe.followingCount ?? 0
-      const nextFollowingCount = Math.max(0, baseFollowingCount + (shouldFollow ? 1 : -1))
-
-      queryClient.setQueryData<User>(["users", "me"], {
-        ...previousMe,
-        followingCount: nextFollowingCount,
-        _count: previousMe._count
-          ? {
-              ...previousMe._count,
-              following: nextFollowingCount,
-            }
-          : previousMe._count,
-      })
-
-      return { previousMe }
-    },
-    onSuccess: (_response, shouldFollow) => {
       queryClient.setQueryData<ProfilePreviewResponse | undefined>(["users", "preview", username], (previous) => {
         if (!previous) {
           return previous
         }
 
-        const followerCount = previous._count?.followers ?? previous.followerCount ?? 0
-        const nextFollowerCount = Math.max(0, followerCount + (shouldFollow ? 1 : -1))
+        const previousFollowerCount = previous._count?.followers ?? previous.followerCount ?? 0
+        const previousFollowState = Boolean(previous.isFollowing)
+        const followerDelta = shouldFollow === previousFollowState ? 0 : shouldFollow ? 1 : -1
+        const nextFollowerCount = Math.max(0, previousFollowerCount + followerDelta)
 
         return {
           ...previous,
@@ -97,21 +169,157 @@ export function UserProfilePage({ username }: UserProfilePageProps) {
         }
       })
 
-      queryClient.invalidateQueries({ queryKey: ["search", "users"], refetchType: "inactive" })
-      queryClient.invalidateQueries({ queryKey: ["users", "followers"], refetchType: "inactive" })
-      queryClient.invalidateQueries({ queryKey: ["users", "following"], refetchType: "inactive" })
-      queryClient.invalidateQueries({ queryKey: ["users", "me"], refetchType: "active" })
+      for (const [cacheKey, data] of previousSearchQueries) {
+        if (!data) {
+          continue
+        }
+
+        queryClient.setQueryData<SearchUsersResponse>(cacheKey, {
+          users: data.users.map((user) => {
+            if (user.username !== username) {
+              return user
+            }
+
+            const previousFollowerCount = user._count?.followers ?? user.followerCount ?? 0
+            const previousFollowState = Boolean(user.isFollowing)
+            const followerDelta = shouldFollow === previousFollowState ? 0 : shouldFollow ? 1 : -1
+            const nextFollowerCount = Math.max(0, previousFollowerCount + followerDelta)
+
+            return {
+              ...user,
+              isFollowing: shouldFollow,
+              followerCount: nextFollowerCount,
+              _count: user._count
+                ? {
+                    ...user._count,
+                    followers: nextFollowerCount,
+                  }
+                : user._count,
+            }
+          }),
+        })
+      }
+
+      if (previousMe) {
+        const baseFollowingCount = previousMe._count?.following ?? previousMe.followingCount ?? 0
+        const currentlyFollowing = Boolean(previousProfile?.isFollowing)
+        const followingDelta = shouldFollow === currentlyFollowing ? 0 : shouldFollow ? 1 : -1
+        const nextFollowingCount = Math.max(0, baseFollowingCount + followingDelta)
+
+        queryClient.setQueryData<User>(["users", "me"], {
+          ...previousMe,
+          followingCount: nextFollowingCount,
+          _count: previousMe._count
+            ? {
+                ...previousMe._count,
+                following: nextFollowingCount,
+              }
+            : previousMe._count,
+        })
+      }
+
+      return {
+        previousProfile,
+        previousSearchQueries,
+        previousMe,
+      }
     },
     onError: (_error, _shouldFollow, context) => {
-      if (!context?.previousMe) {
+      if (!context) {
         return
       }
 
-      queryClient.setQueryData(["users", "me"], context.previousMe)
+      queryClient.setQueryData(["users", "preview", username], context.previousProfile)
+
+      for (const [cacheKey, data] of context.previousSearchQueries ?? []) {
+        queryClient.setQueryData(cacheKey, data)
+      }
+
+      if (context.previousMe) {
+        queryClient.setQueryData(["users", "me"], context.previousMe)
+      }
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ["search", "users"], refetchType: "active" })
+      queryClient.invalidateQueries({ queryKey: ["users", "preview", username], refetchType: "active" })
+      queryClient.invalidateQueries({ queryKey: ["users", "followers"], refetchType: "active" })
+      queryClient.invalidateQueries({ queryKey: ["users", "following"], refetchType: "active" })
+      queryClient.invalidateQueries({ queryKey: ["users", "me"], refetchType: "active" })
+    },
+  })
+
+  const likeMutation = useMutation({
+    mutationFn: async (payload: { postId: string; isLiked: boolean }) => {
+      const method = payload.isLiked ? "DELETE" : "POST"
+      return apiFetch(`/api/posts/${payload.postId}/like`, {
+        method,
+      })
+    },
+    onSuccess: (_response, payload) => {
+      const likeDelta = payload.isLiked ? -1 : 1
+
+      patchPostAcrossCaches(payload.postId, (post) => ({
+        ...post,
+        isLikedByMe: !payload.isLiked,
+        likeCount: Math.max(0, post.likeCount + likeDelta),
+      }))
+
+      queryClient.invalidateQueries({ queryKey: ["posts"], refetchType: "inactive" })
+    },
+  })
+
+  const repostMutation = useMutation({
+    mutationFn: async (payload: { postId: string; isReposted: boolean }) => {
+      const method = payload.isReposted ? "DELETE" : "POST"
+      return apiFetch(`/api/posts/${payload.postId}/repost`, {
+        method,
+      })
+    },
+    onSuccess: (_response, payload) => {
+      patchPostAcrossCaches(payload.postId, (post) => ({
+        ...post,
+        isRepostedByMe: !payload.isReposted,
+      }))
+
+      queryClient.invalidateQueries({ queryKey: ["posts"], refetchType: "inactive" })
+      queryClient.invalidateQueries({ queryKey: ["notifications"], refetchType: "active" })
+    },
+  })
+
+  const createCommentMutation = useMutation({
+    mutationFn: async (payload: { postId: string; content: string }) => {
+      return apiFetch(`/api/comments/post/${payload.postId}`, {
+        method: "POST",
+        body: JSON.stringify({
+          content: payload.content,
+        }),
+      })
+    },
+    onSuccess: (_response, payload) => {
+      setCommentDrafts((prev) => ({
+        ...prev,
+        [payload.postId]: "",
+      }))
+
+      patchPostAcrossCaches(payload.postId, (post) => ({
+        ...post,
+        commentCount: post.commentCount + 1,
+      }))
+
+      queryClient.invalidateQueries({ queryKey: ["comments", "thread", payload.postId], refetchType: "active" })
+      queryClient.invalidateQueries({ queryKey: ["comments", "user", me?.id], refetchType: "inactive" })
+      queryClient.invalidateQueries({ queryKey: ["notifications"], refetchType: "active" })
     },
   })
 
   const posts = useMemo(() => postsPage?.data || [], [postsPage])
+  const activeCommentPostId = activeCommentPost?.id || null
+  const activeCommentDraft = activeCommentPostId ? (commentDrafts[activeCommentPostId] || "") : ""
+  const activeCommentPending = Boolean(
+    createCommentMutation.isPending &&
+      activeCommentPostId &&
+      createCommentMutation.variables?.postId === activeCommentPostId
+  )
 
   if (isProfileLoading) {
     return (
@@ -133,10 +341,18 @@ export function UserProfilePage({ username }: UserProfilePageProps) {
   const followerCount = profile._count?.followers ?? profile.followerCount ?? 0
   const followingCount = profile._count?.following ?? profile.followingCount ?? 0
   const isFollowing = Boolean(profile.isFollowing)
+  const isOwnProfile = Boolean(me?.id && me.id === profile.id)
 
   return (
     <div className="flex flex-col w-full">
       <div className="px-6 pt-6 pb-5 border-b border-border/50">
+        <div className="mb-4">
+          <Button variant="ghost" size="sm" className="gap-1.5" onClick={onBack}>
+            <ArrowLeft size={16} />
+            {t("profile.back")}
+          </Button>
+        </div>
+
         <div className="flex items-start justify-between gap-4">
           <div>
             <h2 className="text-xl font-bold leading-tight">{displayName}</h2>
@@ -158,7 +374,7 @@ export function UserProfilePage({ username }: UserProfilePageProps) {
             variant={isFollowing ? "outline" : "default"}
             className="rounded-full px-4"
             onClick={() => followMutation.mutate(!isFollowing)}
-            disabled={followMutation.isPending}
+            disabled={followMutation.isPending || isOwnProfile}
           >
             {isFollowing ? t("search.following") : t("search.follow")}
           </Button>
@@ -197,12 +413,67 @@ export function UserProfilePage({ username }: UserProfilePageProps) {
             timestamp={formatRelativeTime(post.createdAt, language, t)}
             likes={post.likeCount}
             comments={post.commentCount}
-            showActions={false}
+            isLiked={Boolean(post.isLikedByMe)}
+            likeDisabled={Boolean(likeMutation.isPending && likeMutation.variables?.postId === post.id)}
+            onToggleLike={() =>
+              likeMutation.mutate({
+                postId: post.id,
+                isLiked: Boolean(post.isLikedByMe),
+              })
+            }
+            commentsOpen={activeCommentPostId === post.id}
+            onToggleComments={() => setActiveCommentPost((prev) => (prev?.id === post.id ? null : post))}
+            isReposted={Boolean(post.isRepostedByMe)}
+            repostDisabled={Boolean(repostMutation.isPending && repostMutation.variables?.postId === post.id)}
+            onToggleRepost={() =>
+              repostMutation.mutate({
+                postId: post.id,
+                isReposted: Boolean(post.isRepostedByMe),
+              })
+            }
+            canDelete={false}
           />
         ))}
 
         <div className="h-16" />
       </div>
+
+      <CommentThreadDialog
+        isOpen={Boolean(activeCommentPost)}
+        post={activeCommentPost}
+        draft={activeCommentDraft}
+        isSubmitting={activeCommentPending}
+        onOpenChange={(open) => {
+          if (!open) {
+            setActiveCommentPost(null)
+          }
+        }}
+        onDraftChange={(value) => {
+          if (!activeCommentPostId) {
+            return
+          }
+
+          setCommentDrafts((prev) => ({
+            ...prev,
+            [activeCommentPostId]: value,
+          }))
+        }}
+        onSubmit={() => {
+          if (!activeCommentPostId) {
+            return
+          }
+
+          const content = (commentDrafts[activeCommentPostId] || "").trim()
+          if (!content || createCommentMutation.isPending) {
+            return
+          }
+
+          createCommentMutation.mutate({
+            postId: activeCommentPostId,
+            content,
+          })
+        }}
+      />
     </div>
   )
 }

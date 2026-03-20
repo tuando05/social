@@ -22,6 +22,11 @@ type PageMeta = {
   defaultFilter?: string
 }
 
+type ProfileReturnState = {
+  page: PageType
+  selectedProfileUsername: string | null
+}
+
 const loadFeedPage = () => import("./components/feed/FeedPage")
 const loadSearchPage = () => import("./components/search/SearchPage")
 const loadNotificationsPage = () => import("./components/notifications/NotificationsPage")
@@ -122,6 +127,7 @@ function PageContent({
   onOpenPost,
   activeFilter,
   selectedProfileUsername,
+  onBackFromUserProfile,
   focusedPostId,
   onFocusedPostHandled,
 }: {
@@ -129,6 +135,7 @@ function PageContent({
   onOpenPost: () => void
   activeFilter?: string
   selectedProfileUsername?: string | null
+  onBackFromUserProfile?: () => void
   focusedPostId?: string | null
   onFocusedPostHandled?: () => void
 }) {
@@ -137,7 +144,7 @@ function PageContent({
     case "notifications": return <NotificationsPage activeFilter={activeFilter} />
     case "profile":
       return selectedProfileUsername
-        ? <UserProfilePage username={selectedProfileUsername} />
+        ? <UserProfilePage username={selectedProfileUsername} onBack={onBackFromUserProfile} />
         : <ProfilePage />
     default:
       return (
@@ -176,6 +183,7 @@ function App() {
   const [isPostModalOpen, setIsPostModalOpen] = useState(false)
   const [postModalKey, setPostModalKey] = useState(0)
   const [selectedProfileUsername, setSelectedProfileUsername] = useState<string | null>(null)
+  const [profileReturnState, setProfileReturnState] = useState<ProfileReturnState | null>(null)
   const [focusedPostId, setFocusedPostId] = useState<string | null>(null)
   const pickerRef = useRef<HTMLDivElement>(null)
 
@@ -224,6 +232,8 @@ function App() {
   }, [feedColumns, setFeedColumns])
 
   const handleNavigate = (page: PageType) => {
+    setProfileReturnState(null)
+
     if (page === "profile" && activePage === "profile") {
       setSelectedProfileUsername(null)
     }
@@ -232,6 +242,18 @@ function App() {
     if (page !== "profile") {
       setSelectedProfileUsername(null)
     }
+  }
+
+  const handleBackFromUserProfile = () => {
+    if (profileReturnState) {
+      setActivePage(profileReturnState.page)
+      setSelectedProfileUsername(profileReturnState.selectedProfileUsername)
+      setProfileReturnState(null)
+      return
+    }
+
+    setActivePage("profile")
+    setSelectedProfileUsername(null)
   }
 
   const addColumn = (pageType: PageType) => {
@@ -306,6 +328,14 @@ function App() {
         return
       }
 
+      const isSameProfile = activePage === "profile" && selectedProfileUsername === username
+      if (!isSameProfile) {
+        setProfileReturnState({
+          page: activePage,
+          selectedProfileUsername,
+        })
+      }
+
       setSelectedProfileUsername(username)
       setActivePage("profile")
     }
@@ -320,6 +350,7 @@ function App() {
 
       setFocusedPostId(postId)
       setActivePage("feed")
+      setProfileReturnState(null)
     }
 
     window.addEventListener("app:open-profile", handleOpenProfile as EventListener)
@@ -329,7 +360,7 @@ function App() {
       window.removeEventListener("app:open-profile", handleOpenProfile as EventListener)
       window.removeEventListener("app:open-post", handleOpenPost as EventListener)
     }
-  }, [])
+  }, [activePage, selectedProfileUsername])
 
   const columns = activePage === "feed"
     ? feedColumns
@@ -398,6 +429,7 @@ function App() {
                       onOpenPost={openPostModal}
                       activeFilter={col.activeFilter}
                       selectedProfileUsername={selectedProfileUsername}
+                      onBackFromUserProfile={handleBackFromUserProfile}
                       focusedPostId={focusedPostId}
                       onFocusedPostHandled={() => setFocusedPostId(null)}
                     />

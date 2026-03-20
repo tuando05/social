@@ -30,6 +30,7 @@ export function NotificationsPage({ activeFilter = "all" }: NotificationsPagePro
     if (n.type === "LIKE_COMMENT") content = t("notifications.likeComment")
     if (n.type === "COMMENT") content = t("notifications.comment")
     if (n.type === "FOLLOW") content = t("notifications.follow")
+    if (n.type === "REPOST") content = t("notifications.repost")
     if (n.type === "MENTION") content = t("notifications.mention")
 
     // Dummy categorization for the UI tabs since backend doesn't have exact categories yet

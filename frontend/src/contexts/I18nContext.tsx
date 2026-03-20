@@ -124,6 +124,7 @@ const messages: Record<Language, Record<string, string>> = {
     "notifications.likeComment": "đã thích bình luận của bạn.",
     "notifications.comment": "đã bình luận bài viết của bạn.",
     "notifications.follow": "bắt đầu theo dõi bạn.",
+    "notifications.repost": "đã đăng lại bài viết của bạn.",
     "notifications.mention": "đã nhắc đến bạn.",
     "notifications.interacted": "đã tương tác với bạn.",
 
@@ -138,6 +139,7 @@ const messages: Record<Language, Record<string, string>> = {
     "profile.followList.emptyFollowing": "Bạn chưa theo dõi ai.",
     "profile.followList.error": "Không thể tải danh sách. Vui lòng thử lại.",
     "profile.hover.noBio": "Chưa có giới thiệu",
+    "profile.back": "Quay lại",
     "profile.tab.posts": "Bài viết",
     "profile.tab.replies": "Trả lời",
     "profile.tab.reposts": "Bài đăng lại",
@@ -302,6 +304,7 @@ const messages: Record<Language, Record<string, string>> = {
     "notifications.likeComment": "liked your comment.",
     "notifications.comment": "commented on your post.",
     "notifications.follow": "started following you.",
+    "notifications.repost": "reposted your post.",
     "notifications.mention": "mentioned you.",
     "notifications.interacted": "interacted with you.",
 
@@ -316,6 +319,7 @@ const messages: Record<Language, Record<string, string>> = {
     "profile.followList.emptyFollowing": "You are not following anyone yet.",
     "profile.followList.error": "Unable to load list. Please try again.",
     "profile.hover.noBio": "No bio yet",
+    "profile.back": "Back",
     "profile.tab.posts": "Posts",
     "profile.tab.replies": "Replies",
     "profile.tab.reposts": "Reposts",

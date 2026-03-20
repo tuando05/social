@@ -11,6 +11,7 @@ enum NotificationType {
   LIKE_POST
   LIKE_COMMENT
   COMMENT
+  REPOST
 }
 
 model User {
