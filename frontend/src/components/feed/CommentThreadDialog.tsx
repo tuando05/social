@@ -1,6 +1,6 @@
 import { useMemo, useState, type CSSProperties } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { Heart, Loader2, MessageSquareMore, Reply } from "lucide-react"
+import { Heart, Loader2, MessageSquareMore, Reply, Trash2 } from "lucide-react"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { useApi } from "@/hooks/useApi"
@@ -148,6 +148,30 @@ export function CommentThreadDialog({
     },
   })
 
+  const deleteCommentMutation = useMutation({
+    mutationFn: async (commentId: string) => {
+      return apiFetch(`/api/comments/${commentId}`, {
+        method: "DELETE",
+      })
+    },
+    onSuccess: async (_response, commentId) => {
+      if (!post?.id) {
+        return
+      }
+
+      queryClient.setQueryData<FeedComment[]>(["comments", "thread", post.id, safeLimit], (previous) => {
+        if (!Array.isArray(previous)) {
+          return previous
+        }
+
+        return previous.filter((comment) => comment.id !== commentId)
+      })
+
+      await queryClient.invalidateQueries({ queryKey: ["comments", "thread", post.id] })
+      await queryClient.invalidateQueries({ queryKey: ["posts"], refetchType: "active" })
+    },
+  })
+
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent
@@ -231,6 +255,25 @@ export function CommentThreadDialog({
                         <Heart size={14} />
                         <span>{comment.likeCount > 0 ? comment.likeCount : t("post.actions.like")}</span>
                       </button>
+                      {me?.id === comment.authorId && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (
+                              deleteCommentMutation.isPending &&
+                              deleteCommentMutation.variables === comment.id
+                            ) {
+                              return
+                            }
+
+                            deleteCommentMutation.mutate(comment.id)
+                          }}
+                          className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground transition-colors hover:text-red-600"
+                        >
+                          <Trash2 size={14} />
+                          <span>Xóa</span>
+                        </button>
+                      )}
                       <button
                         type="button"
                         onClick={() => {
