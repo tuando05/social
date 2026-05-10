@@ -2,6 +2,7 @@ import { prisma } from "../lib/prisma";
 import { pusherServer } from "../lib/pusher";
 import { ApiError } from "../middleware/error.middleware";
 import { isPrismaUniqueError } from "../utils/prisma-error";
+import { createNotification } from "./notification.service";
 
 export const getCommentsByPost = async (
   postId: string,
@@ -102,24 +103,19 @@ export const createComment = async (
     });
 
     if (post.authorId !== userId) {
-      await tx.notification.create({
-        data: {
+      await createNotification(
+        {
           recipientId: post.authorId,
           actorId: userId,
           type: "COMMENT",
           postId,
           commentId: created.id,
         },
-      });
+        tx
+      );
     }
 
     return created;
-  });
-
-  await pusherServer.trigger(`private-user-${post.authorId}`, "post:commented", {
-    postId,
-    commentId: comment.id,
-    userId,
   });
 
   return comment;
@@ -185,24 +181,18 @@ export const likeComment = async (userId: string, commentId: string) => {
     });
 
     if (comment.authorId !== userId) {
-      await tx.notification.create({
-        data: {
+      await createNotification(
+        {
           recipientId: comment.authorId,
           actorId: userId,
           type: "LIKE_COMMENT",
           commentId,
           postId: comment.postId,
         },
-      });
+        tx
+      );
     }
   });
-
-  if (createdLike) {
-    await pusherServer.trigger(`private-user-${comment.authorId}`, "comment:liked", {
-      commentId,
-      userId,
-    });
-  }
 
   return { success: true };
 };

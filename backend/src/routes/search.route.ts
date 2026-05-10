@@ -13,6 +13,8 @@ router.get(
   "/",
   validate(searchQuerySchema),
   asyncHandler(async (req, res) => {
+    // #swagger.tags = ['Search']
+    // #swagger.summary = 'Search users and posts'
     const viewerId = getAuthUserId(req);
     const q = String(req.query.q || "").trim();
     const type = String(req.query.type || "all");

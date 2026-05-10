@@ -1,5 +1,44 @@
 import { prisma } from "../lib/prisma";
+import { pusherServer } from "../lib/pusher";
 import { ApiError } from "../middleware/error.middleware";
+
+export const createNotification = async (
+  data: {
+    recipientId: string;
+    actorId: string;
+    type: string;
+    postId?: string;
+    commentId?: string;
+  },
+  tx?: any
+) => {
+  const client = tx || prisma;
+  const notification = await client.notification.create({
+    data: data as any,
+    include: {
+      actor: {
+        select: {
+          id: true,
+          username: true,
+          displayName: true,
+          imageUrl: true,
+        },
+      },
+      post: {
+        select: { id: true, content: true },
+      },
+      comment: {
+        select: { id: true, content: true, postId: true },
+      },
+    },
+  });
+
+  // Trigger real-time notification event in background (don't await)
+  pusherServer.trigger(`private-user-${data.recipientId}`, "notification:new", notification)
+    .catch(err => console.error("[Pusher] Trigger error:", err));
+
+  return notification;
+};
 
 export const listNotifications = async (
   userId: string,

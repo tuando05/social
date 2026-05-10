@@ -26,6 +26,8 @@ router.get(
   "/post/:postId",
   validate(postCommentsParamSchema),
   asyncHandler(async (req, res) => {
+    // #swagger.tags = ['Comments']
+    // #swagger.summary = 'Get comments of a post'
     const userId = getAuthUserId(req);
     const { limit } = getPagination({ limit: req.query.limit as string | undefined });
     const postId = String(req.params.postId);
@@ -38,6 +40,8 @@ router.get(
   "/user/:userId",
   validate(userCommentsParamSchema),
   asyncHandler(async (req, res) => {
+    // #swagger.tags = ['Comments']
+    // #swagger.summary = 'Get comments by user'
     const { cursor, limit } = getPagination({
       cursor: req.query.cursor as string | undefined,
       limit: req.query.limit as string | undefined,
@@ -52,6 +56,8 @@ router.post(
   "/post/:postId",
   validate(createCommentSchema),
   asyncHandler(async (req, res) => {
+    // #swagger.tags = ['Comments']
+    // #swagger.summary = 'Create comment'
     const userId = getAuthUserId(req);
     const postId = String(req.params.postId);
     const data = await createComment(userId, postId, req.body);
@@ -63,6 +69,8 @@ router.delete(
   "/:commentId",
   validate(commentIdParamSchema),
   asyncHandler(async (req, res) => {
+    // #swagger.tags = ['Comments']
+    // #swagger.summary = 'Delete comment'
     const userId = getAuthUserId(req);
     const commentId = String(req.params.commentId);
     const data = await deleteComment(userId, commentId);
@@ -74,6 +82,8 @@ router.post(
   "/:commentId/like",
   validate(commentIdParamSchema),
   asyncHandler(async (req, res) => {
+    // #swagger.tags = ['Comments']
+    // #swagger.summary = 'Like comment'
     const userId = getAuthUserId(req);
     const commentId = String(req.params.commentId);
     const data = await likeComment(userId, commentId);
@@ -85,6 +95,8 @@ router.delete(
   "/:commentId/like",
   validate(commentIdParamSchema),
   asyncHandler(async (req, res) => {
+    // #swagger.tags = ['Comments']
+    // #swagger.summary = 'Unlike comment'
     const userId = getAuthUserId(req);
     const commentId = String(req.params.commentId);
     const data = await unlikeComment(userId, commentId);

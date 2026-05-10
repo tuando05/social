@@ -6,6 +6,7 @@ import { ClerkProvider } from '@clerk/clerk-react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { ThemeProvider } from './contexts/ThemeContext'
 import { I18nProvider } from './contexts/I18nContext'
+import { PusherProvider } from './contexts/PusherContext'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -30,7 +31,9 @@ createRoot(document.getElementById('root')!).render(
       <ThemeProvider>
         <ClerkProvider publishableKey={PUBLISHABLE_KEY} afterSignOutUrl="/">
           <QueryClientProvider client={queryClient}>
-            <App />
+            <PusherProvider>
+              <App />
+            </PusherProvider>
           </QueryClientProvider>
         </ClerkProvider>
       </ThemeProvider>

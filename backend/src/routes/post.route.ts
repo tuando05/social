@@ -32,6 +32,8 @@ router.post(
   "/",
   validate(createPostSchema),
   asyncHandler(async (req, res) => {
+    // #swagger.tags = ['Posts']
+    // #swagger.summary = 'Create post'
     const userId = getAuthUserId(req);
     const data = await createPost(userId, req.body);
     res.status(201).json(data);
@@ -41,6 +43,8 @@ router.post(
 router.get(
   "/feed",
   asyncHandler(async (req, res) => {
+    // #swagger.tags = ['Posts']
+    // #swagger.summary = 'Get personalized feed'
     const userId = getAuthUserId(req);
     const feedFilter: FeedFilter =
       typeof req.query.filter === "string" && req.query.filter.toLowerCase() === "following"
@@ -59,6 +63,8 @@ router.get(
   "/user/:userId",
   validate(userPostParamSchema),
   asyncHandler(async (req, res) => {
+    // #swagger.tags = ['Posts']
+    // #swagger.summary = 'Get posts by user'
     const viewerUserId = getAuthUserId(req);
     const { cursor, limit } = getPagination({
       cursor: req.query.cursor as string | undefined,
@@ -74,6 +80,8 @@ router.get(
   "/:postId",
   validate(postIdParamSchema),
   asyncHandler(async (req, res) => {
+    // #swagger.tags = ['Posts']
+    // #swagger.summary = 'Get post by id'
     const userId = getAuthUserId(req);
     const postId = String(req.params.postId);
     const data = await getPostById(postId, userId);
@@ -85,6 +93,8 @@ router.get(
   "/user/:userId/reposts",
   validate(userPostParamSchema),
   asyncHandler(async (req, res) => {
+    // #swagger.tags = ['Posts']
+    // #swagger.summary = 'Get reposts by user'
     const viewerUserId = getAuthUserId(req);
     const { cursor, limit } = getPagination({
       cursor: req.query.cursor as string | undefined,
@@ -100,6 +110,8 @@ router.patch(
   "/:postId",
   validate(updatePostSchema),
   asyncHandler(async (req, res) => {
+    // #swagger.tags = ['Posts']
+    // #swagger.summary = 'Update post'
     const userId = getAuthUserId(req);
     const postId = String(req.params.postId);
     const data = await updatePost(userId, postId, req.body);
@@ -111,6 +123,8 @@ router.delete(
   "/:postId",
   validate(postIdParamSchema),
   asyncHandler(async (req, res) => {
+    // #swagger.tags = ['Posts']
+    // #swagger.summary = 'Delete post'
     const userId = getAuthUserId(req);
     const postId = String(req.params.postId);
     const data = await deletePost(userId, postId);
@@ -122,6 +136,8 @@ router.post(
   "/:postId/like",
   validate(postIdParamSchema),
   asyncHandler(async (req, res) => {
+    // #swagger.tags = ['Posts']
+    // #swagger.summary = 'Like post'
     const userId = getAuthUserId(req);
     const postId = String(req.params.postId);
     const data = await likePost(userId, postId);
@@ -133,6 +149,8 @@ router.delete(
   "/:postId/like",
   validate(postIdParamSchema),
   asyncHandler(async (req, res) => {
+    // #swagger.tags = ['Posts']
+    // #swagger.summary = 'Unlike post'
     const userId = getAuthUserId(req);
     const postId = String(req.params.postId);
     const data = await unlikePost(userId, postId);
@@ -144,6 +162,8 @@ router.post(
   "/:postId/repost",
   validate(postIdParamSchema),
   asyncHandler(async (req, res) => {
+    // #swagger.tags = ['Posts']
+    // #swagger.summary = 'Repost post'
     const userId = getAuthUserId(req);
     const postId = String(req.params.postId);
     const data = await repostPost(userId, postId);
@@ -155,6 +175,8 @@ router.delete(
   "/:postId/repost",
   validate(postIdParamSchema),
   asyncHandler(async (req, res) => {
+    // #swagger.tags = ['Posts']
+    // #swagger.summary = 'Undo repost'
     const userId = getAuthUserId(req);
     const postId = String(req.params.postId);
     const data = await unrepostPost(userId, postId);

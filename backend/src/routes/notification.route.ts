@@ -17,6 +17,8 @@ router.use(requireAuth);
 router.get(
   "/",
   asyncHandler(async (req, res) => {
+    // #swagger.tags = ['Notifications']
+    // #swagger.summary = 'List notifications'
     const userId = getAuthUserId(req);
     const { cursor, limit } = getPagination({
       cursor: req.query.cursor as string | undefined,
@@ -31,6 +33,8 @@ router.get(
 router.patch(
   "/read-all",
   asyncHandler(async (req, res) => {
+    // #swagger.tags = ['Notifications']
+    // #swagger.summary = 'Mark all notifications as read'
     const userId = getAuthUserId(req);
     const data = await markAllNotificationsAsRead(userId);
     res.json(data);
@@ -41,6 +45,8 @@ router.patch(
   "/:notificationId/read",
   validate(notificationIdParamSchema),
   asyncHandler(async (req, res) => {
+    // #swagger.tags = ['Notifications']
+    // #swagger.summary = 'Mark one notification as read'
     const userId = getAuthUserId(req);
     const notificationId = String(req.params.notificationId);
     const data = await markNotificationAsRead(userId, notificationId);
