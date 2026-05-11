@@ -1,4 +1,4 @@
-import { SignedIn, SignedOut, SignInButton, SignUpButton } from "@clerk/clerk-react"
+import { SignedIn, SignedOut, SignInButton, SignUpButton, useUser } from "@clerk/clerk-react"
 import { Button } from "@/components/ui/button"
 import { AppLayout } from "./components/layout/AppLayout"
 import { SubPageContainer, type FilterOption } from "./components/layout/SubPageContainer"
@@ -8,6 +8,13 @@ import { Home, Search, Heart, User, PlusCircle, PenSquare } from "lucide-react"
 import { useLocalStorage } from "@/hooks/useLocalStorage"
 import { useI18n } from "@/contexts/I18nContext"
 import { motion, AnimatePresence } from "framer-motion"
+import { usePusherEvent } from "@/hooks/usePusher"
+
+type Toast = {
+  id: string
+  message: string
+  type: string
+}
 
 type Column = {
   id: string
@@ -169,6 +176,7 @@ function PageContentFallback() {
 // ─── App ──────────────────────────────────────────────────────────────────────
 function App() {
   const { t } = useI18n()
+  const { user } = useUser()
   const pageMeta = buildPageMeta(t)
 
   const [activePage, setActivePage] = useState<PageType>("feed")
@@ -181,13 +189,53 @@ function App() {
   })
   const [pickerOpen, setPickerOpen] = useState(false)
   const [isPostModalOpen, setIsPostModalOpen] = useState(false)
+  const [postToEdit, setPostToEdit] = useState<{ id: string, content: string, imageUrls?: string[] } | null>(null)
   const [postModalKey, setPostModalKey] = useState(0)
   const [selectedProfileUsername, setSelectedProfileUsername] = useState<string | null>(null)
   const [profileReturnState, setProfileReturnState] = useState<ProfileReturnState | null>(null)
   const [focusedPostId, setFocusedPostId] = useState<string | null>(null)
+  const [toasts, setToasts] = useState<Toast[]>([])
   const pickerRef = useRef<HTMLDivElement>(null)
 
+  const addToast = (message: string, type: string) => {
+    const id = Math.random().toString(36).substring(2, 9)
+    setToasts((prev) => [...prev, { id, message, type }])
+    setTimeout(() => {
+      setToasts((prev) => prev.filter((t) => t.id !== id))
+    }, 5000)
+  }
+
+  usePusherEvent(`private-user-${user?.id}`, "notification:new", (notif: any) => {
+    let message = ""
+    const name = notif.issuerName || t("common.user")
+    
+    switch (notif.type) {
+      case "FOLLOW":
+        message = `${name} ${t("notifications.follow")}`
+        break
+      case "LIKE_POST":
+        message = `${name} ${t("notifications.likePost")}`
+        break
+      case "COMMENT":
+        message = `${name} ${t("notifications.comment")}`
+        break
+      case "REPOST":
+        message = `${name} ${t("notifications.repost")}`
+        break
+      default:
+        message = t("notifications.interacted") || "You have a new interaction"
+    }
+    addToast(message, notif.type)
+  })
+
   const openPostModal = () => {
+    setPostToEdit(null)
+    setPostModalKey((prev) => prev + 1)
+    setIsPostModalOpen(true)
+  }
+
+  const openEditPostModal = (post: { id: string, content: string, imageUrls?: string[] }) => {
+    setPostToEdit(post)
     setPostModalKey((prev) => prev + 1)
     setIsPostModalOpen(true)
   }
@@ -353,12 +401,25 @@ function App() {
       setProfileReturnState(null)
     }
 
+    const handleEditPost = (event: Event) => {
+      const customEvent = event as CustomEvent<{ post: { id: string, content: string, imageUrls?: string[] } }>
+      const post = customEvent.detail?.post
+
+      if (!post) {
+        return
+      }
+
+      openEditPostModal(post)
+    }
+
     window.addEventListener("app:open-profile", handleOpenProfile as EventListener)
     window.addEventListener("app:open-post", handleOpenPost as EventListener)
+    window.addEventListener("app:edit-post", handleEditPost as EventListener)
 
     return () => {
       window.removeEventListener("app:open-profile", handleOpenProfile as EventListener)
       window.removeEventListener("app:open-post", handleOpenPost as EventListener)
+      window.removeEventListener("app:edit-post", handleEditPost as EventListener)
     }
   }, [activePage, selectedProfileUsername])
 
@@ -488,8 +549,27 @@ function App() {
             key={postModalKey}
             isOpen={isPostModalOpen}
             onClose={() => setIsPostModalOpen(false)}
+            postToEdit={postToEdit}
           />
         </Suspense>
+
+        {/* Toast Notifications */}
+        <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-[100] flex flex-col gap-2 pointer-events-none">
+          <AnimatePresence>
+            {toasts.map((toast) => (
+              <motion.div
+                key={toast.id}
+                initial={{ opacity: 0, y: 20, scale: 0.95 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                className="bg-foreground text-background px-4 py-2.5 rounded-2xl shadow-2xl text-sm font-semibold flex items-center gap-2 pointer-events-auto"
+              >
+                <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
+                {toast.message}
+              </motion.div>
+            ))}
+          </AnimatePresence>
+        </div>
       </SignedIn>
     </>
   )

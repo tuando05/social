@@ -2,6 +2,11 @@ import { Home, Search, Heart, User, Settings, PenSquare } from "lucide-react"
 import { SettingsMenu } from "@/components/settings/SettingsMenu"
 import { useState, useEffect, useRef } from "react"
 import { useI18n } from "@/contexts/I18nContext"
+import { usePusherEvent } from "@/hooks/usePusher"
+import { useUser } from "@clerk/clerk-react"
+import { useQuery } from "@tanstack/react-query"
+import { useApi } from "@/hooks/useApi"
+import type { PaginatedResponse, Notification } from "@/types/api"
 
 export type PageType = "feed" | "search" | "notifications" | "profile"
 
@@ -13,9 +18,35 @@ interface SidebarProps {
 
 export function Sidebar({ activePage, onNavigate, onOpenPost }: SidebarProps) {
   const { t } = useI18n()
+  const { user } = useUser()
+  const { apiFetch } = useApi()
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [settingsMenuKey, setSettingsMenuKey] = useState(0)
+  const [hasUnread, setHasUnread] = useState(false)
   const settingsRef = useRef<HTMLDivElement>(null)
+
+  const { data: notificationsData } = useQuery<PaginatedResponse<Notification>>({
+    queryKey: ["notifications", "unread-check"],
+    queryFn: () => apiFetch("/api/notifications?limit=20"),
+    enabled: !!user,
+  })
+
+  useEffect(() => {
+    if (notificationsData?.data) {
+      const unread = notificationsData.data.some(n => !n.isRead)
+      setHasUnread(unread)
+    }
+  }, [notificationsData])
+
+  useEffect(() => {
+    if (activePage === "notifications") {
+      setHasUnread(false)
+    }
+  }, [activePage])
+
+  usePusherEvent(`private-user-${user?.id}`, "notification:new", () => {
+    setHasUnread(true)
+  })
 
   const navTop = [
     { page: "feed" as const, icon: Home, label: t("sidebar.home") },
@@ -58,11 +89,16 @@ export function Sidebar({ activePage, onNavigate, onOpenPost }: SidebarProps) {
             : "text-muted-foreground hover:text-foreground hover:bg-muted"
           }`}
       >
-        <Icon
-          size={28}
-          strokeWidth={isActive ? 3 : 2.5}
-          fill={isActive ? "currentColor" : "none"}
-        />
+        <div className="relative">
+          <Icon
+            size={28}
+            strokeWidth={isActive ? 3 : 2.5}
+            fill={isActive ? "currentColor" : "none"}
+          />
+          {page === "notifications" && hasUnread && (
+            <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full border-2 border-background" />
+          )}
+        </div>
       </button>
     )
   }

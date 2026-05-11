@@ -10,6 +10,7 @@ import { useI18n } from "@/contexts/I18nContext"
 import { formatRelativeTime } from "@/lib/time"
 import { CommentThreadDialog } from "./CommentThreadDialog"
 import { useCurrentUserProfile } from "@/hooks/useCurrentUserProfile"
+import { usePusherEvent } from "@/hooks/usePusher"
 
 interface FeedPageProps {
   onOpenPost: () => void
@@ -30,6 +31,28 @@ export function FeedPage({ onOpenPost, activeFilter, focusedPostId, onFocusedPos
   const [commentDrafts, setCommentDrafts] = useState<Record<string, string>>({})
   const loadMoreRef = useRef<HTMLDivElement | null>(null)
   const feedFilter = activeFilter === "following" ? "following" : "foryou"
+
+  usePusherEvent("public-feed", "post:new", (newPost: any) => {
+    console.log("📝 [Feed] New post received:", newPost);
+    // Refresh the feed to show the new post
+    queryClient.invalidateQueries({ queryKey: ["posts", "feed"] });
+  })
+
+  // Listen for global post updates (likes, comments count)
+  // Note: Backend needs to trigger these events on a public or relevant private channel
+  // For now, we'll focus on the user's private channel for their own posts' interactions
+  usePusherEvent(`private-user-${user?.id}`, "notification:new", (notif: any) => {
+    console.log("🔔 [Feed] Interaction received via notification:", notif);
+    
+    if (notif.type === "LIKE_POST" || notif.type === "COMMENT" || notif.type === "REPOST") {
+      // Refresh the specific post in the feed to update counts
+      if (notif.postId) {
+        queryClient.invalidateQueries({ queryKey: ["posts", "detail", notif.postId] });
+        // Also refresh the feed to update the card view
+        queryClient.invalidateQueries({ queryKey: ["posts", "feed"] });
+      }
+    }
+  })
 
   const patchPostAcrossCaches = useCallback(
     (postId: string, updater: (post: Post) => Post) => {
@@ -403,6 +426,18 @@ export function FeedPage({ onOpenPost, activeFilter, focusedPostId, onFocusedPos
                   }
                   deletePostMutation.mutate(post.id)
                 }}
+                canEdit={Boolean(me?.id && post.authorId === me.id)}
+                onEdit={() => {
+                  window.dispatchEvent(new CustomEvent("app:edit-post", {
+                    detail: {
+                      post: {
+                        id: post.id,
+                        content: post.content,
+                        imageUrls: post.imageUrls
+                      }
+                    }
+                  }))
+                }}
               />
             </div>
           )
@@ -453,6 +488,18 @@ export function FeedPage({ onOpenPost, activeFilter, focusedPostId, onFocusedPos
                   return
                 }
                 deletePostMutation.mutate(focusedPostToRender.id)
+              }}
+              canEdit={Boolean(me?.id && focusedPostToRender.authorId === me.id)}
+              onEdit={() => {
+                window.dispatchEvent(new CustomEvent("app:edit-post", {
+                  detail: {
+                    post: {
+                      id: focusedPostToRender.id,
+                      content: focusedPostToRender.content,
+                      imageUrls: focusedPostToRender.imageUrls
+                    }
+                  }
+                }))
               }}
             />
           </div>

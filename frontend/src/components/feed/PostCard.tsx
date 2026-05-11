@@ -1,4 +1,4 @@
-import { Heart, MessageCircle, Repeat2, Send, Trash2 } from "lucide-react"
+import { Heart, MessageCircle, Pencil, Repeat2, Send, Trash2 } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { UserHoverPreview } from "@/components/profile/UserHoverPreview"
 import { useI18n } from "@/contexts/I18nContext"
@@ -30,6 +30,8 @@ interface PostCardProps {
   canDelete?: boolean
   onDelete?: () => void
   deleteDisabled?: boolean
+  canEdit?: boolean
+  onEdit?: () => void
 }
 
 export const PostCard = memo(function PostCard({
@@ -53,6 +55,8 @@ export const PostCard = memo(function PostCard({
   canDelete = false,
   onDelete,
   deleteDisabled = false,
+  canEdit = false,
+  onEdit,
 }: PostCardProps) {
   const { t } = useI18n()
 
@@ -112,6 +116,16 @@ export const PostCard = memo(function PostCard({
           </div>
           <div className="flex items-center gap-2">
             <span className="text-muted-foreground text-[clamp(11px,2.6cqw,14px)]">{timestamp}</span>
+            {canEdit && (
+              <button
+                type="button"
+                onClick={onEdit}
+                className="text-muted-foreground transition-colors hover:text-primary"
+                title={t("common.edit")}
+              >
+                <Pencil size={16} />
+              </button>
+            )}
             {canDelete && (
               <button
                 type="button"

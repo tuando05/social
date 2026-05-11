@@ -21,6 +21,11 @@ interface Draft {
 interface CreatePostModalProps {
   isOpen: boolean
   onClose: () => void
+  postToEdit?: {
+    id: string
+    content: string
+    imageUrls?: string[]
+  } | null
 }
 
 type ViewMode = 'compose' | 'drafts'
@@ -49,12 +54,13 @@ const COMPOSER_BODY_STYLE: CSSProperties = {
   maxHeight: `${COMPOSER_LAYOUT.bodyMaxHeightDvh}dvh`,
 }
 
-export function CreatePostModal({ isOpen, onClose }: CreatePostModalProps) {
+export function CreatePostModal({ isOpen, onClose, postToEdit }: CreatePostModalProps) {
   const { language, t } = useI18n()
   const [viewMode, setViewMode] = useState<ViewMode>('compose')
   const [drafts, setDrafts] = useState<Draft[]>([])
   const [content, setContent] = useState("")
   const [images, setImages] = useState<File[]>([])
+  const [existingImageUrls, setExistingImageUrls] = useState<string[]>([])
   const [showDiscardDialog, setShowDiscardDialog] = useState(false)
   const [hasDraft, setHasDraft] = useState(false)
   const [currentDraftId, setCurrentDraftId] = useState<string | null>(null)
@@ -68,6 +74,18 @@ export function CreatePostModal({ isOpen, onClose }: CreatePostModalProps) {
   const { user } = useUser()
   const { data: me } = useCurrentUserProfile()
   const { getToken } = useAuth()
+
+  // Initialize content when editing
+  useEffect(() => {
+    if (isOpen) {
+      if (postToEdit) {
+        setContent(postToEdit.content)
+        setExistingImageUrls(postToEdit.imageUrls || [])
+        setImages([])
+        setViewMode('compose')
+      }
+    }
+  }, [isOpen, postToEdit])
 
   const { startUpload, isUploading } = useUploadThing("imageUploader", {
     headers: async () => {
@@ -118,8 +136,11 @@ export function CreatePostModal({ isOpen, onClose }: CreatePostModalProps) {
 
   const createPostMutation = useMutation({
     mutationFn: async (data: { content: string; imageUrls: string[] }) => {
-      return apiFetch("/api/posts", {
-        method: "POST",
+      const url = postToEdit ? `/api/posts/${postToEdit.id}` : "/api/posts"
+      const method = postToEdit ? "PATCH" : "POST"
+      
+      return apiFetch(url, {
+        method,
         body: JSON.stringify({
           content: data.content.trim(),
           imageUrls: data.imageUrls,
@@ -143,6 +164,7 @@ export function CreatePostModal({ isOpen, onClose }: CreatePostModalProps) {
 
       setContent("")
       setImages([])
+      setExistingImageUrls([])
       setCurrentDraftId(null)
       setHasDraft(false)
       setComposerError(null)
@@ -170,9 +192,9 @@ export function CreatePostModal({ isOpen, onClose }: CreatePostModalProps) {
     setComposerError(null)
 
     try {
-      let imageUrls: string[] = []
+      let uploadedUrls: string[] = []
 
-      // Upload images if present
+      // Upload new images if present
       if (images.length > 0) {
         const uploadedFiles = await startUpload(images)
 
@@ -181,20 +203,21 @@ export function CreatePostModal({ isOpen, onClose }: CreatePostModalProps) {
           return
         }
 
-        imageUrls = uploadedFiles.map(file => file.ufsUrl || file.url).filter(Boolean) as string[]
+        uploadedUrls = uploadedFiles.map(file => file.ufsUrl || file.url).filter(Boolean) as string[]
 
-        if (imageUrls.length !== images.length) {
+        if (uploadedUrls.length !== images.length) {
           setComposerError(t("composer.imageUploadError"))
           return
         }
       }
 
-      createPostMutation.mutate({ content, imageUrls })
+      const finalImageUrls = [...existingImageUrls, ...uploadedUrls]
+      createPostMutation.mutate({ content, imageUrls: finalImageUrls })
     } catch (error) {
       console.error("Upload error:", error)
       setComposerError(error instanceof Error ? error.message : t("composer.imageUploadError"))
     }
-  }, [content, createPostMutation, images, isUploading, startUpload, t])
+  }, [content, createPostMutation, images, isUploading, startUpload, t, existingImageUrls])
 
   const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || [])
@@ -265,6 +288,7 @@ export function CreatePostModal({ isOpen, onClose }: CreatePostModalProps) {
 
     setContent("")
     setImages([])
+    setExistingImageUrls([])
     setCurrentDraftId(null)
     setHasDraft(false)
     setComposerError(null)
@@ -307,6 +331,7 @@ export function CreatePostModal({ isOpen, onClose }: CreatePostModalProps) {
 
     setContent("")
     setImages([])
+    setExistingImageUrls([])
     setCurrentDraftId(null)
     setHasDraft(false)
     setComposerError(null)
@@ -314,7 +339,7 @@ export function CreatePostModal({ isOpen, onClose }: CreatePostModalProps) {
     onClose()
   }
 
-  const hasContent = Boolean(content.trim() || images.length > 0)
+  const hasContent = Boolean(content.trim() || images.length > 0 || existingImageUrls.length > 0)
 
   return (
     <>
@@ -332,7 +357,9 @@ export function CreatePostModal({ isOpen, onClose }: CreatePostModalProps) {
         >
           <DialogHeader className="px-6 py-4 border-b border-border/50 relative">
             <DialogTitle className="text-center font-bold text-[17px]">
-              {viewMode === 'compose' ? t("composer.title") : `${t("composer.drafts")} (${drafts.length})`}
+              {viewMode === 'compose' 
+                ? (postToEdit ? t("common.edit") : t("composer.title")) 
+                : `${t("composer.drafts")} (${drafts.length})`}
             </DialogTitle>
             <DialogDescription className="sr-only">{t("composer.dialogDescription")}</DialogDescription>
 
@@ -403,18 +430,35 @@ export function CreatePostModal({ isOpen, onClose }: CreatePostModalProps) {
                   />
                 </div>
 
-                {/* Image Previews */}
-                {images.length > 0 && (
+                {/* Image Previews (Existing + New) */}
+                {(existingImageUrls.length > 0 || images.length > 0) && (
                   <div className={`grid gap-2 ${
-                    images.length === 1 ? 'grid-cols-1' :
-                    images.length === 2 ? 'grid-cols-2' :
+                    (existingImageUrls.length + images.length) === 1 ? 'grid-cols-1' :
                     'grid-cols-2'
                   }`}>
+                    {/* Existing Images */}
+                    {existingImageUrls.map((url, index) => (
+                      <div key={`existing-${index}`} className="relative group aspect-square rounded-xl overflow-hidden bg-muted">
+                        <img
+                          src={url}
+                          alt={`Existing ${index + 1}`}
+                          className="w-full h-full object-cover"
+                        />
+                        <button
+                          onClick={() => setExistingImageUrls(prev => prev.filter((_, i) => i !== index))}
+                          className="absolute top-2 right-2 w-6 h-6 bg-black/70 hover:bg-black rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                        >
+                          <X size={14} className="text-white" />
+                        </button>
+                      </div>
+                    ))}
+
+                    {/* New Images */}
                     {images.map((image, index) => (
-                      <div key={index} className="relative group aspect-square rounded-xl overflow-hidden bg-muted">
+                      <div key={`new-${index}`} className="relative group aspect-square rounded-xl overflow-hidden bg-muted">
                         <img
                           src={URL.createObjectURL(image)}
-                          alt={`Preview ${index + 1}`}
+                          alt={`New ${index + 1}`}
                           className="w-full h-full object-cover"
                         />
                         <button
@@ -440,7 +484,7 @@ export function CreatePostModal({ isOpen, onClose }: CreatePostModalProps) {
                   />
                   <button
                     onClick={() => imageInputRef.current?.click()}
-                    disabled={images.length >= 4}
+                    disabled={(images.length + existingImageUrls.length) >= 4}
                     className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     title={t("composer.addImage")}
                   >
@@ -459,7 +503,9 @@ export function CreatePostModal({ isOpen, onClose }: CreatePostModalProps) {
               disabled={!hasContent || createPostMutation.isPending || isUploading}
               className="rounded-full px-8 py-5 font-semibold transition-all bg-foreground text-background hover:bg-foreground/90 disabled:opacity-50"
             >
-              {(createPostMutation.isPending || isUploading) ? <Loader2 className="animate-spin w-4 h-4" /> : t("composer.post")}
+              {(createPostMutation.isPending || isUploading) 
+                ? <Loader2 className="animate-spin w-4 h-4" /> 
+                : (postToEdit ? t("common.save") : t("composer.post"))}
             </Button>
           </div>
             </>

@@ -7,14 +7,19 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tansta
 import { useApi } from "@/hooks/useApi"
 import { useI18n } from "@/contexts/I18nContext"
 import { UserHoverPreview } from "@/components/profile/UserHoverPreview"
-import type { User } from "@/types/api"
+import { PostCard } from "@/components/feed/PostCard"
+import type { User, Post } from "@/types/api"
+import { formatRelativeTime } from "@/lib/time"
+
+type SearchType = "users" | "posts"
 
 type SearchUser = User & {
   isFollowing?: boolean
 }
 
-type SearchUsersResponse = {
-  users: SearchUser[]
+type SearchResponse = {
+  users?: SearchUser[]
+  posts?: Post[]
 }
 
 type ProfilePreviewResponse = User & {
@@ -22,20 +27,21 @@ type ProfilePreviewResponse = User & {
 }
 
 export function SearchPage() {
-  const { t } = useI18n()
+  const { language, t } = useI18n()
   const { apiFetch } = useApi()
   const queryClient = useQueryClient()
   const [query, setQuery] = useState("")
+  const [searchType, setSearchType] = useState<SearchType>("users")
 
   const [debouncedQuery, setDebouncedQuery] = useState(query)
   const normalizedDebouncedQuery = debouncedQuery.trim()
 
-  const usersSearchPath = useMemo(
+  const searchPath = useMemo(
     () =>
-      `/api/search?type=users${
+      `/api/search?type=${searchType}${
         normalizedDebouncedQuery ? `&q=${encodeURIComponent(normalizedDebouncedQuery)}` : ""
       }`,
-    [normalizedDebouncedQuery]
+    [searchType, normalizedDebouncedQuery]
   )
 
   // Debounce query
@@ -46,9 +52,9 @@ export function SearchPage() {
     return () => clearTimeout(handler)
   }, [query])
 
-  const usersQuery = useQuery<SearchUsersResponse>({
-    queryKey: ["search", "users", normalizedDebouncedQuery],
-    queryFn: ({ signal }) => apiFetch(usersSearchPath, { signal }),
+  const searchQuery = useQuery<SearchResponse>({
+    queryKey: ["search", searchType, normalizedDebouncedQuery],
+    queryFn: ({ signal }) => apiFetch(searchPath, { signal }),
     staleTime: 60_000,
     placeholderData: keepPreviousData,
   })
@@ -64,7 +70,7 @@ export function SearchPage() {
       await queryClient.cancelQueries({ queryKey: ["users", "preview", username] })
       await queryClient.cancelQueries({ queryKey: ["users", "me"] })
 
-      const previousQueries = queryClient.getQueriesData<SearchUsersResponse>({
+      const previousQueries = queryClient.getQueriesData<SearchResponse>({
         queryKey: ["search", "users"],
       })
       const previousPreviewQueries = queryClient.getQueriesData<ProfilePreviewResponse>({
@@ -75,7 +81,7 @@ export function SearchPage() {
       if (previousMe) {
         const baseFollowingCount = previousMe._count?.following ?? previousMe.followingCount ?? 0
         const currentlyFollowing = previousQueries.some(([, data]) =>
-          Boolean(data?.users.some((item) => item.id === userId && Boolean(item.isFollowing)))
+          Boolean(data?.users?.some((item) => item.id === userId && Boolean(item.isFollowing)))
         )
         const followingDelta = shouldFollow === currentlyFollowing ? 0 : shouldFollow ? 1 : -1
         const nextFollowingCount = Math.max(0, baseFollowingCount + followingDelta)
@@ -93,11 +99,12 @@ export function SearchPage() {
       }
 
       for (const [cacheKey, data] of previousQueries) {
-        if (!data) {
+        if (!data || !data.users) {
           continue
         }
 
-        queryClient.setQueryData<SearchUsersResponse>(cacheKey, {
+        queryClient.setQueryData<SearchResponse>(cacheKey, {
+          ...data,
           users: data.users.map((user) => {
             if (user.id !== userId) {
               return user
@@ -172,8 +179,9 @@ export function SearchPage() {
     },
   })
 
-  const usersToDisplay = usersQuery.data?.users || []
-  const isLoading = usersQuery.isLoading
+  const usersToDisplay = searchQuery.data?.users || []
+  const postsToDisplay = searchQuery.data?.posts || []
+  const isLoading = searchQuery.isLoading
 
   const toggleFollow = (user: SearchUser) => {
     if (followMutation.isPending && followMutation.variables?.userId === user.id) {
@@ -202,6 +210,26 @@ export function SearchPage() {
             />
           </div>
         </div>
+
+        {/* Search Tabs */}
+        <div className="flex px-4">
+          <button
+            onClick={() => setSearchType("users")}
+            className={`flex-1 py-3 text-sm font-semibold transition-colors border-b-2 ${
+              searchType === "users" ? "border-foreground text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            {t("search.tabUsers") || "Users"}
+          </button>
+          <button
+            onClick={() => setSearchType("posts")}
+            className={`flex-1 py-3 text-sm font-semibold transition-colors border-b-2 ${
+              searchType === "posts" ? "border-foreground text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            {t("search.tabPosts") || "Posts"}
+          </button>
+        </div>
       </div>
 
       {/* Content */}
@@ -212,7 +240,7 @@ export function SearchPage() {
           </div>
         )}
 
-        {!isLoading && usersToDisplay.map((user) => {
+        {!isLoading && searchType === "users" && usersToDisplay.map((user) => {
           const followerCount = user.followerCount ?? user._count?.followers ?? 0
           const isFollowing = Boolean(user.isFollowing)
           const followPending =
@@ -250,9 +278,36 @@ export function SearchPage() {
           )
         })}
 
-        {!isLoading && usersToDisplay.length === 0 && (
+        {!isLoading && searchType === "posts" && postsToDisplay.map((post) => (
+          <div key={post.id}>
+            <PostCard
+              id={post.id}
+              author={{
+                name: post.author.displayName || post.author.username || t("common.anonymous"),
+                username: post.author.username || 'unknown',
+                avatar: post.author.avatar || post.author.imageUrl || `https://ui-avatars.com/api/?name=${post.author.username || 'User'}`,
+                isVerified: post.author.isVerified
+              }}
+              content={post.content}
+              imageUrls={post.imageUrls}
+              timestamp={formatRelativeTime(post.createdAt, language, t)}
+              likes={post.likeCount}
+              comments={post.commentCount}
+              hasReply={false}
+              showActions={false} // Simplify search results for now
+            />
+          </div>
+        ))}
+
+        {!isLoading && searchType === "users" && usersToDisplay.length === 0 && (
           <div className="text-center py-10 text-muted-foreground text-sm">
             {t("search.noUsers")}
+          </div>
+        )}
+
+        {!isLoading && searchType === "posts" && postsToDisplay.length === 0 && (normalizedDebouncedQuery) && (
+          <div className="text-center py-10 text-muted-foreground text-sm">
+            {t("search.noPosts") || "No posts found"}
           </div>
         )}
 

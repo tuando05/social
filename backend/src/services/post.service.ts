@@ -2,6 +2,7 @@ import { prisma } from "../lib/prisma";
 import { pusherServer } from "../lib/pusher";
 import { ApiError } from "../middleware/error.middleware";
 import { isPrismaUniqueError } from "../utils/prisma-error";
+import { createNotification } from "./notification.service";
 
 export type FeedFilter = "foryou" | "following";
 
@@ -270,27 +271,14 @@ export const repostPost = async (userId: string, postId: string) => {
     // Keep repost functional even if notification persistence fails (e.g. enum not migrated yet).
     if (post.authorId !== userId) {
       try {
-        await prisma.notification.create({
-          data: {
-            recipientId: post.authorId,
-            actorId: userId,
-            type: "REPOST" as any,
-            postId,
-          },
+        await createNotification({
+          recipientId: post.authorId,
+          actorId: userId,
+          type: "REPOST",
+          postId,
         });
       } catch (error) {
         console.error("Failed to create repost notification", error);
-      }
-    }
-
-    if (post.authorId !== userId) {
-      try {
-        await pusherServer.trigger(`private-user-${post.authorId}`, "post:reposted", {
-          postId,
-          userId,
-        });
-      } catch (error) {
-        console.error("Failed to publish repost realtime event", error);
       }
     }
 
@@ -394,23 +382,17 @@ export const likePost = async (userId: string, postId: string) => {
     });
 
     if (post.authorId !== userId) {
-      await tx.notification.create({
-        data: {
+      await createNotification(
+        {
           recipientId: post.authorId,
           actorId: userId,
           type: "LIKE_POST",
           postId,
         },
-      });
+        tx
+      );
     }
   });
-
-  if (createdLike) {
-    await pusherServer.trigger(`private-user-${post.authorId}`, "post:liked", {
-      postId,
-      userId,
-    });
-  }
 
   return { success: true };
 };

@@ -1,10 +1,12 @@
-import { useQuery } from "@tanstack/react-query"
+import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { useApi } from "@/hooks/useApi"
 import type { PaginatedResponse, Notification } from "@/types/api"
 import { Loader2 } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { useI18n } from "@/contexts/I18nContext"
 import { UserHoverPreview } from "@/components/profile/UserHoverPreview"
+import { usePusherEvent } from "@/hooks/usePusher"
+import { useUser } from "@clerk/clerk-react"
 
 type FilterKey = "all" | "replies" | "mentions" | "follows" | "requests"
 
@@ -15,6 +17,28 @@ interface NotificationsPageProps {
 export function NotificationsPage({ activeFilter = "all" }: NotificationsPageProps) {
   const { language, t } = useI18n()
   const { apiFetch } = useApi()
+  const { user } = useUser()
+  const queryClient = useQueryClient()
+
+  usePusherEvent<Notification>(`private-user-${user?.id}`, "notification:new", (newNotif) => {
+    console.log("🔔 [NotificationsPage] New real-time notification:", newNotif);
+    
+    // Optimistically update the notifications list
+    queryClient.setQueryData<PaginatedResponse<Notification>>(["notifications"], (old) => {
+      if (!old) return old;
+      
+      // Avoid duplicates
+      if (old.data.some(n => n.id === newNotif.id)) return old;
+
+      return {
+        ...old,
+        data: [newNotif, ...old.data],
+      };
+    });
+
+    // Also trigger a background refresh to ensure consistency
+    queryClient.invalidateQueries({ queryKey: ["notifications"], refetchType: "none" });
+  })
 
   const { data, isLoading } = useQuery<PaginatedResponse<Notification>>({
     queryKey: ["notifications"],

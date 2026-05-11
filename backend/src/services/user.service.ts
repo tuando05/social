@@ -2,6 +2,7 @@ import { prisma } from "../lib/prisma";
 import { pusherServer } from "../lib/pusher";
 import { ApiError } from "../middleware/error.middleware";
 import { isPrismaUniqueError } from "../utils/prisma-error";
+import { createNotification } from "./notification.service";
 
 const USERNAME_MIN_LENGTH = 3;
 const USERNAME_MAX_LENGTH = 32;
@@ -432,16 +433,10 @@ export const followUser = async (followerId: string, followingId: string) => {
     throw error;
   }
 
-  await prisma.notification.create({
-    data: {
-      recipientId: followingId,
-      actorId: followerId,
-      type: "FOLLOW",
-    },
-  });
-
-  await pusherServer.trigger(`private-user-${followingId}`, "follow:new", {
-    followerId,
+  await createNotification({
+    recipientId: followingId,
+    actorId: followerId,
+    type: "FOLLOW",
   });
 
   return { success: true };

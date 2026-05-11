@@ -21,6 +21,8 @@ export const errorHandler = (
   res: Response,
   _next: NextFunction
 ) => {
+  console.error("[ErrorHandler] Caught error:", err);
+
   if (err instanceof ApiError) {
     return res.status(err.statusCode).json({
       message: err.message,
