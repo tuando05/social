@@ -106,14 +106,13 @@ const messages: Record<Language, Record<string, string>> = {
     "settings.language.en": "English",
     "settings.logout": "Đăng xuất",
 
-    "search.placeholder": "Tìm kiếm người dùng, hashtag...",
-    "search.tab.suggested": "Gợi ý",
-    "search.tab.trending": "Xu hướng",
-    "search.tab.people": "Tài khoản",
+    "search.placeholder": "Tìm kiếm người dùng, bài viết...",
+    "search.tabUsers": "Người dùng",
+    "search.tabPosts": "Bài viết",
     "search.follow": "Theo dõi",
     "search.following": "Đang theo dõi",
     "search.noUsers": "Không tìm thấy người dùng nào",
-    "search.inProgress": "Tính năng đang được phát triển",
+    "search.noPosts": "Không tìm thấy bài viết nào",
     "search.followers": "{{count}} người theo dõi",
 
     "notifications.empty": "Bạn chưa có thông báo nào.",
@@ -286,14 +285,13 @@ const messages: Record<Language, Record<string, string>> = {
     "settings.language.en": "English",
     "settings.logout": "Log out",
 
-    "search.placeholder": "Search users, hashtags...",
-    "search.tab.suggested": "Suggested",
-    "search.tab.trending": "Trending",
-    "search.tab.people": "People",
+    "search.placeholder": "Search users, posts...",
+    "search.tabUsers": "Users",
+    "search.tabPosts": "Posts",
     "search.follow": "Follow",
     "search.following": "Following",
     "search.noUsers": "No users found",
-    "search.inProgress": "Feature in progress",
+    "search.noPosts": "No posts found",
     "search.followers": "{{count}} followers",
 
     "notifications.empty": "You have no notifications yet.",
@@ -309,6 +307,7 @@ const messages: Record<Language, Record<string, string>> = {
     "notifications.interacted": "interacted with you.",
 
     "profile.title": "Profile",
+    "profile.joined": "Joined {{date}}",
     "profile.followers": "followers",
     "profile.following": "following",
     "profile.followList.dialogDescription": "Followers and following lists",
@@ -433,3 +432,4 @@ export function useI18n() {
 
   return context
 }
+

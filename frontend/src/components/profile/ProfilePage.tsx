@@ -19,7 +19,7 @@ import { formatRelativeTime } from "@/lib/time"
 import { useUploadThing } from "@/lib/uploadthing"
 import { PostCard } from "@/components/feed/PostCard"
 import { CommentThreadDialog } from "@/components/feed/CommentThreadDialog"
-import { ImagePlus, Link2, Loader2, Pencil, Plus, Trash2 } from "lucide-react"
+import { ImagePlus, Loader2, Pencil, Plus, Trash2, Calendar, Github, Twitter, Facebook, Instagram, Globe } from "lucide-react"
 
 type ProfileTab = "posts" | "replies" | "reposts"
 
@@ -110,6 +110,15 @@ const FOLLOW_LIST_BODY_STYLE: CSSProperties = {
 const getDisplayName = (user: User | undefined) => {
   if (!user) return "User"
   return user.displayName || user.username || "User"
+}
+
+const getLinkIcon = (url: string) => {
+  const lowUrl = url.toLowerCase()
+  if (lowUrl.includes("github.com")) return <Github size={14} />
+  if (lowUrl.includes("twitter.com") || lowUrl.includes("x.com")) return <Twitter size={14} />
+  if (lowUrl.includes("facebook.com")) return <Facebook size={14} />
+  if (lowUrl.includes("instagram.com")) return <Instagram size={14} />
+  return <Globe size={14} />
 }
 
 const normalizeEditableLinks = (
@@ -631,6 +640,15 @@ export function ProfilePage() {
     })
   }
 
+  const joinedDate = useMemo(() => {
+    if (!me?.createdAt) return null
+    const date = new Date(me.createdAt)
+    return date.toLocaleDateString(language === "vi" ? "vi-VN" : "en-US", {
+      month: "long",
+      year: "numeric",
+    })
+  }, [me?.createdAt, language])
+
   if (isLoading) {
     return (
       <div className="flex flex-col w-full p-8">
@@ -679,39 +697,48 @@ export function ProfilePage() {
         )}
 
         {profileLinks.length > 0 && (
-          <div className="flex flex-col gap-2 mb-3">
+          <div className="flex flex-wrap gap-x-4 gap-y-2 mb-3">
             {profileLinks.map((link) => (
               <a
                 key={link.id}
                 href={link.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
+                className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors group"
               >
-                <Link2 size={13} />
-                {link.label}
+                <span className="text-muted-foreground group-hover:text-primary transition-colors">
+                  {getLinkIcon(link.url)}
+                </span>
+                <span className="group-hover:underline">{link.label}</span>
               </a>
             ))}
           </div>
         )}
 
-        <div className="flex items-center gap-4 mb-4 text-sm">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mb-4 text-sm text-muted-foreground">
+          {joinedDate && (
+            <div className="flex items-center gap-1">
+              <Calendar size={14} />
+              <span>{t("profile.joined", { date: joinedDate }) || `Joined ${joinedDate}`}</span>
+            </div>
+          )}
+          
           <button
             type="button"
-            className="text-left transition-opacity hover:opacity-80"
+            className="flex items-center gap-1 transition-opacity hover:opacity-80"
             onClick={() => openFollowList("followers")}
           >
-            <span className="font-bold">{followerCount.toLocaleString()}</span>{" "}
-            <span className="text-muted-foreground">{t("profile.followers")}</span>
+            <span className="font-bold text-foreground">{followerCount.toLocaleString()}</span>{" "}
+            <span>{t("profile.followers")}</span>
           </button>
-          <span className="text-muted-foreground/30">·</span>
+          
           <button
             type="button"
-            className="text-left transition-opacity hover:opacity-80"
+            className="flex items-center gap-1 transition-opacity hover:opacity-80"
             onClick={() => openFollowList("following")}
           >
-            <span className="font-bold">{followingCount}</span>{" "}
-            <span className="text-muted-foreground">{t("profile.following")}</span>
+            <span className="font-bold text-foreground">{followingCount}</span>{" "}
+            <span>{t("profile.following")}</span>
           </button>
         </div>
 
@@ -790,6 +817,18 @@ export function ProfilePage() {
                   return
                 }
                 deletePostMutation.mutate(post.id)
+              }}
+              canEdit={Boolean(me?.id && post.authorId === me.id)}
+              onEdit={() => {
+                window.dispatchEvent(new CustomEvent("app:edit-post", {
+                  detail: {
+                    post: {
+                      id: post.id,
+                      content: post.content,
+                      imageUrls: post.imageUrls
+                    }
+                  }
+                }))
               }}
             />
           )
@@ -876,6 +915,18 @@ export function ProfilePage() {
                     return
                   }
                   deletePostMutation.mutate(repost.id)
+                }}
+                canEdit={Boolean(me?.id && repost.authorId === me.id)}
+                onEdit={() => {
+                  window.dispatchEvent(new CustomEvent("app:edit-post", {
+                    detail: {
+                      post: {
+                        id: repost.id,
+                        content: repost.content,
+                        imageUrls: repost.imageUrls
+                      }
+                    }
+                  }))
                 }}
               />
             </div>

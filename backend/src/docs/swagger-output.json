@@ -79,7 +79,143 @@
         "description": "",
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "User profile retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "example": "user_123"
+                    },
+                    "username": {
+                      "type": "string",
+                      "example": "johndoe"
+                    },
+                    "displayName": {
+                      "type": "string",
+                      "example": "John Doe"
+                    },
+                    "bio": {
+                      "type": "string",
+                      "example": "Software Engineer"
+                    },
+                    "avatar": {
+                      "type": "string",
+                      "example": "https://example.com/avatar.png"
+                    },
+                    "links": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "label": {
+                            "type": "string",
+                            "example": "Twitter"
+                          },
+                          "url": {
+                            "type": "string",
+                            "example": "https://twitter.com/johndoe"
+                          },
+                          "sortOrder": {
+                            "type": "number",
+                            "example": 0
+                          }
+                        }
+                      }
+                    },
+                    "_count": {
+                      "type": "object",
+                      "properties": {
+                        "followers": {
+                          "type": "number",
+                          "example": 10
+                        },
+                        "following": {
+                          "type": "number",
+                          "example": 20
+                        },
+                        "posts": {
+                          "type": "number",
+                          "example": 5
+                        }
+                      }
+                    }
+                  },
+                  "xml": {
+                    "name": "main"
+                  }
+                }
+              },
+              "application/xml": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "example": "user_123"
+                    },
+                    "username": {
+                      "type": "string",
+                      "example": "johndoe"
+                    },
+                    "displayName": {
+                      "type": "string",
+                      "example": "John Doe"
+                    },
+                    "bio": {
+                      "type": "string",
+                      "example": "Software Engineer"
+                    },
+                    "avatar": {
+                      "type": "string",
+                      "example": "https://example.com/avatar.png"
+                    },
+                    "links": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "label": {
+                            "type": "string",
+                            "example": "Twitter"
+                          },
+                          "url": {
+                            "type": "string",
+                            "example": "https://twitter.com/johndoe"
+                          },
+                          "sortOrder": {
+                            "type": "number",
+                            "example": 0
+                          }
+                        }
+                      }
+                    },
+                    "_count": {
+                      "type": "object",
+                      "properties": {
+                        "followers": {
+                          "type": "number",
+                          "example": 10
+                        },
+                        "following": {
+                          "type": "number",
+                          "example": 20
+                        },
+                        "posts": {
+                          "type": "number",
+                          "example": 5
+                        }
+                      }
+                    }
+                  },
+                  "xml": {
+                    "name": "main"
+                  }
+                }
+              }
+            }
           },
           "401": {
             "description": "Unauthorized"
@@ -94,10 +230,187 @@
         "description": "",
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "Profile updated successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "example": "user_123"
+                    },
+                    "username": {
+                      "type": "string",
+                      "example": "johndoe"
+                    },
+                    "displayName": {
+                      "type": "string",
+                      "example": "John Doe"
+                    },
+                    "bio": {
+                      "type": "string",
+                      "example": "Software Engineer"
+                    },
+                    "avatar": {
+                      "type": "string",
+                      "example": "https://example.com/avatar.png"
+                    },
+                    "links": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "label": {
+                            "type": "string",
+                            "example": "Twitter"
+                          },
+                          "url": {
+                            "type": "string",
+                            "example": "https://twitter.com/johndoe"
+                          },
+                          "sortOrder": {
+                            "type": "number",
+                            "example": 0
+                          }
+                        }
+                      }
+                    },
+                    "_count": {
+                      "type": "object",
+                      "properties": {
+                        "followers": {
+                          "type": "number",
+                          "example": 10
+                        },
+                        "following": {
+                          "type": "number",
+                          "example": 20
+                        },
+                        "posts": {
+                          "type": "number",
+                          "example": 5
+                        }
+                      }
+                    }
+                  },
+                  "xml": {
+                    "name": "main"
+                  }
+                }
+              },
+              "application/xml": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "example": "user_123"
+                    },
+                    "username": {
+                      "type": "string",
+                      "example": "johndoe"
+                    },
+                    "displayName": {
+                      "type": "string",
+                      "example": "John Doe"
+                    },
+                    "bio": {
+                      "type": "string",
+                      "example": "Software Engineer"
+                    },
+                    "avatar": {
+                      "type": "string",
+                      "example": "https://example.com/avatar.png"
+                    },
+                    "links": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "label": {
+                            "type": "string",
+                            "example": "Twitter"
+                          },
+                          "url": {
+                            "type": "string",
+                            "example": "https://twitter.com/johndoe"
+                          },
+                          "sortOrder": {
+                            "type": "number",
+                            "example": 0
+                          }
+                        }
+                      }
+                    },
+                    "_count": {
+                      "type": "object",
+                      "properties": {
+                        "followers": {
+                          "type": "number",
+                          "example": 10
+                        },
+                        "following": {
+                          "type": "number",
+                          "example": 20
+                        },
+                        "posts": {
+                          "type": "number",
+                          "example": 5
+                        }
+                      }
+                    }
+                  },
+                  "xml": {
+                    "name": "main"
+                  }
+                }
+              }
+            }
           },
           "401": {
             "description": "Unauthorized"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "username": {
+                    "type": "string"
+                  },
+                  "displayName": {
+                    "type": "string"
+                  },
+                  "bio": {
+                    "type": "string"
+                  },
+                  "avatar": {
+                    "type": "string"
+                  },
+                  "links": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "label": {
+                          "type": "string"
+                        },
+                        "url": {
+                          "type": "string"
+                        },
+                        "sortOrder": {
+                          "type": "integer"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
           }
         }
       }
@@ -121,7 +434,151 @@
         ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "Public profile retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "example": "user_123"
+                    },
+                    "username": {
+                      "type": "string",
+                      "example": "johndoe"
+                    },
+                    "displayName": {
+                      "type": "string",
+                      "example": "John Doe"
+                    },
+                    "bio": {
+                      "type": "string",
+                      "example": "Software Engineer"
+                    },
+                    "avatar": {
+                      "type": "string",
+                      "example": "https://example.com/avatar.png"
+                    },
+                    "links": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "label": {
+                            "type": "string",
+                            "example": "Twitter"
+                          },
+                          "url": {
+                            "type": "string",
+                            "example": "https://twitter.com/johndoe"
+                          },
+                          "sortOrder": {
+                            "type": "number",
+                            "example": 0
+                          }
+                        }
+                      }
+                    },
+                    "isFollowing": {
+                      "type": "boolean",
+                      "example": false
+                    },
+                    "_count": {
+                      "type": "object",
+                      "properties": {
+                        "followers": {
+                          "type": "number",
+                          "example": 10
+                        },
+                        "following": {
+                          "type": "number",
+                          "example": 20
+                        },
+                        "posts": {
+                          "type": "number",
+                          "example": 5
+                        }
+                      }
+                    }
+                  },
+                  "xml": {
+                    "name": "main"
+                  }
+                }
+              },
+              "application/xml": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string",
+                      "example": "user_123"
+                    },
+                    "username": {
+                      "type": "string",
+                      "example": "johndoe"
+                    },
+                    "displayName": {
+                      "type": "string",
+                      "example": "John Doe"
+                    },
+                    "bio": {
+                      "type": "string",
+                      "example": "Software Engineer"
+                    },
+                    "avatar": {
+                      "type": "string",
+                      "example": "https://example.com/avatar.png"
+                    },
+                    "links": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "label": {
+                            "type": "string",
+                            "example": "Twitter"
+                          },
+                          "url": {
+                            "type": "string",
+                            "example": "https://twitter.com/johndoe"
+                          },
+                          "sortOrder": {
+                            "type": "number",
+                            "example": 0
+                          }
+                        }
+                      }
+                    },
+                    "isFollowing": {
+                      "type": "boolean",
+                      "example": false
+                    },
+                    "_count": {
+                      "type": "object",
+                      "properties": {
+                        "followers": {
+                          "type": "number",
+                          "example": 10
+                        },
+                        "following": {
+                          "type": "number",
+                          "example": 20
+                        },
+                        "posts": {
+                          "type": "number",
+                          "example": 5
+                        }
+                      }
+                    }
+                  },
+                  "xml": {
+                    "name": "main"
+                  }
+                }
+              }
+            }
           },
           "401": {
             "description": "Unauthorized"
@@ -861,6 +1318,49 @@
           },
           "401": {
             "description": "Unauthorized"
+          }
+        }
+      }
+    },
+    "/api/pusher/auth": {
+      "post": {
+        "tags": [
+          "System"
+        ],
+        "summary": "Pusher Authentication Endpoint",
+        "description": "",
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "400": {
+            "description": "Bad Request"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "Forbidden"
+          },
+          "500": {
+            "description": "Internal Server Error"
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "socket_id": {
+                    "example": "any"
+                  },
+                  "channel_name": {
+                    "example": "any"
+                  }
+                }
+              }
+            }
           }
         }
       }

@@ -5,7 +5,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { useApi } from "@/hooks/useApi"
 import { useCurrentUserProfile } from "@/hooks/useCurrentUserProfile"
-import { useI18n } from "@/contexts/I18nContext"
+import { useI18n, type Language } from "@/contexts/I18nContext"
 import { formatRelativeTime } from "@/lib/time"
 import type { Comment as FeedComment, Post } from "@/types/api"
 
@@ -43,7 +43,122 @@ type CommentThreadDialogProps = {
   isSubmitting: boolean
   onOpenChange: (open: boolean) => void
   onDraftChange: (value: string) => void
-  onSubmit: () => void
+  onSubmit?: () => void
+}
+
+function CommentNode({
+  comment,
+  repliesMap,
+  me,
+  language,
+  t,
+  toggleLikeMutation,
+  deleteCommentMutation,
+  onReply,
+  depth = 0,
+}: {
+  comment: FeedComment
+  repliesMap: Map<string, FeedComment[]>
+  me: any
+  language: Language
+  t: any
+  toggleLikeMutation: any
+  deleteCommentMutation: any
+  onReply: (id: string, username: string) => void
+  depth?: number
+}) {
+  const childComments = repliesMap.get(comment.id) || []
+  
+  if (!comment || !comment.author || depth > 10) {
+    return null
+  }
+
+  const authorDisplayName = comment.author.displayName || comment.author.username || "User"
+  const authorUsername = comment.author.username || "unknown"
+  const authorAvatar = comment.author.avatar || comment.author.imageUrl || undefined
+
+  return (
+    <div className={`flex gap-2.5 ${depth > 0 ? "mt-3" : ""}`}>
+      <Avatar className="h-8 w-8 border border-border">
+        <AvatarImage src={authorAvatar} />
+        <AvatarFallback>{authorDisplayName[0]}</AvatarFallback>
+      </Avatar>
+      <div className="min-w-0 flex-1">
+        <div className="rounded-2xl border border-border/70 bg-background px-3 py-2.5">
+          <p className="mb-1 text-xs text-muted-foreground">
+            <span className="font-semibold text-foreground">{authorDisplayName}</span> @
+            {authorUsername} · {formatRelativeTime(comment.createdAt, language, t)}
+          </p>
+          <p className="whitespace-pre-wrap text-sm leading-relaxed text-foreground">
+            {comment.content}
+          </p>
+          <div className="mt-2 flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => {
+                const isLiked = Boolean(comment.isLikedByMe)
+                if (
+                  toggleLikeMutation.isPending &&
+                  toggleLikeMutation.variables?.commentId === comment.id
+                ) {
+                  return
+                }
+                toggleLikeMutation.mutate({ commentId: comment.id, isLiked })
+              }}
+              className={`inline-flex items-center gap-1 text-xs font-medium transition-colors ${
+                comment.isLikedByMe ? "text-rose-600" : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <Heart size={14} />
+              <span>{comment.likeCount > 0 ? comment.likeCount : t?.("post.actions.like") || "Like"}</span>
+            </button>
+            {me?.id === comment.authorId && (
+              <button
+                type="button"
+                onClick={() => {
+                  if (deleteCommentMutation.isPending && deleteCommentMutation.variables === comment.id) {
+                    return
+                  }
+                  deleteCommentMutation.mutate(comment.id)
+                }}
+                className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground transition-colors hover:text-red-600"
+              >
+                <Trash2 size={14} />
+                <span>Xóa</span>
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => onReply(comment.id, authorUsername)}
+              className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
+            >
+              <Reply size={14} />
+              <span>Reply</span>
+            </button>
+          </div>
+        </div>
+
+        {childComments.length > 0 && (
+          <div className="ml-4 mt-1 border-l-2 border-border/50 pl-2">
+            {childComments.map((child) => (
+              <CommentNode
+                key={child.id}
+                comment={child}
+                repliesMap={repliesMap}
+                me={me}
+                language={language}
+                t={t}
+                toggleLikeMutation={toggleLikeMutation}
+                deleteCommentMutation={deleteCommentMutation}
+                onReply={onReply}
+                depth={depth + 1}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  )
 }
 
 export function CommentThreadDialog({
@@ -61,7 +176,6 @@ export function CommentThreadDialog({
   const queryClient = useQueryClient()
   const [visibleLimit, setVisibleLimit] = useState(30)
   const [replyingTo, setReplyingTo] = useState<{ id: string; username: string } | null>(null)
-  const [replyDraft, setReplyDraft] = useState("")
   const safeLimit = Math.min(COMMENT_LIMIT_MAX, Math.max(COMMENT_LIMIT_MIN, visibleLimit))
 
   const {
@@ -74,14 +188,29 @@ export function CommentThreadDialog({
     enabled: Boolean(isOpen && post?.id),
   })
 
-  const orderedComments = useMemo(() => {
+  const { topLevelComments, repliesMap } = useMemo(() => {
     if (!comments) {
-      return []
+      return { topLevelComments: [], repliesMap: new Map<string, FeedComment[]>() }
     }
 
-    return [...comments].sort(
+    const sorted = [...comments].sort(
       (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
     )
+
+    const topLevel: FeedComment[] = []
+    const map = new Map<string, FeedComment[]>()
+
+    sorted.forEach((comment) => {
+      if (comment.parentId) {
+        const list = map.get(comment.parentId) || []
+        list.push(comment)
+        map.set(comment.parentId, list)
+      } else {
+        topLevel.push(comment)
+      }
+    })
+
+    return { topLevelComments: topLevel, repliesMap: map }
   }, [comments])
 
   const canLoadMore = Boolean(
@@ -123,18 +252,16 @@ export function CommentThreadDialog({
     },
   })
 
-  const replyMutation = useMutation({
-    mutationFn: async (payload: { parentId: string; content: string }) => {
-      if (!post?.id) {
+  const createCommentMutation = useMutation({
+    mutationFn: async (payload: { content: string; parentId?: string }) => {
+      const actualPostId = post?.id
+      if (!actualPostId) {
         throw new Error("Missing post id")
       }
 
-      return apiFetch(`/api/comments/post/${post.id}`, {
+      return apiFetch(`/api/comments/post/${actualPostId}`, {
         method: "POST",
-        body: JSON.stringify({
-          content: payload.content,
-          parentId: payload.parentId,
-        }),
+        body: JSON.stringify(payload),
       })
     },
     onSuccess: async () => {
@@ -142,10 +269,14 @@ export function CommentThreadDialog({
         return
       }
 
-      setReplyDraft("")
+      onDraftChange("")
       setReplyingTo(null)
       await queryClient.invalidateQueries({ queryKey: ["comments", "thread", post.id] })
+      await queryClient.invalidateQueries({ queryKey: ["posts"], refetchType: "active" })
     },
+    onError: (error) => {
+      console.error("Comment submission failed:", error)
+    }
   })
 
   const deleteCommentMutation = useMutation({
@@ -172,8 +303,31 @@ export function CommentThreadDialog({
     },
   })
 
+  const handleReply = (id: string, username: string) => {
+    setReplyingTo({ id, username })
+  }
+
+  const handleInternalSubmit = () => {
+    if (!draft.trim() || createCommentMutation.isPending || isSubmitting) {
+      return
+    }
+
+    if (onSubmit && !replyingTo) {
+      onSubmit()
+      return
+    }
+    
+    createCommentMutation.mutate({
+      content: draft.trim(),
+      parentId: replyingTo?.id
+    })
+  }
+
   return (
-    <Dialog open={isOpen} onOpenChange={onOpenChange}>
+    <Dialog open={isOpen} onOpenChange={(open) => {
+      if (!open) setReplyingTo(null)
+      onOpenChange(open)
+    }}>
       <DialogContent
         className="overflow-hidden rounded-[28px] border-2 border-border bg-card p-0 shadow-2xl"
         style={COMMENT_DIALOG_STYLE}
@@ -208,89 +362,24 @@ export function CommentThreadDialog({
             </p>
           )}
 
-          {!isLoading && !error && orderedComments.length === 0 && (
+          {!isLoading && !error && topLevelComments.length === 0 && (
             <p className="text-sm text-muted-foreground">{t("feed.comments.empty")}</p>
           )}
 
-          {!isLoading && !error && orderedComments.length > 0 && (
+          {!isLoading && !error && topLevelComments.length > 0 && (
             <div className="space-y-4">
-              {orderedComments.map((comment) => (
-                <div key={comment.id} className="flex gap-2.5">
-                  <Avatar className="h-8 w-8 border border-border">
-                    <AvatarImage src={comment.author.avatar || comment.author.imageUrl || undefined} />
-                    <AvatarFallback>
-                      {(comment.author.displayName || comment.author.username || "U")[0]}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="min-w-0 flex-1 rounded-2xl border border-border/70 bg-background px-3 py-2.5">
-                    <p className="mb-1 text-xs text-muted-foreground">
-                      <span className="font-semibold text-foreground">
-                        {comment.author.displayName || comment.author.username}
-                      </span>{" "}
-                      @{comment.author.username} · {formatRelativeTime(comment.createdAt, language, t)}
-                    </p>
-                    <p className="whitespace-pre-wrap text-sm leading-relaxed text-foreground">
-                      {comment.content}
-                    </p>
-                    <div className="mt-2 flex items-center gap-3">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const isLiked = Boolean(comment.isLikedByMe)
-                          if (
-                            toggleCommentLikeMutation.isPending &&
-                            toggleCommentLikeMutation.variables?.commentId === comment.id
-                          ) {
-                            return
-                          }
-
-                          toggleCommentLikeMutation.mutate({ commentId: comment.id, isLiked })
-                        }}
-                        className={`inline-flex items-center gap-1 text-xs font-medium transition-colors ${
-                          comment.isLikedByMe
-                            ? "text-rose-600"
-                            : "text-muted-foreground hover:text-foreground"
-                        }`}
-                      >
-                        <Heart size={14} />
-                        <span>{comment.likeCount > 0 ? comment.likeCount : t("post.actions.like")}</span>
-                      </button>
-                      {me?.id === comment.authorId && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (
-                              deleteCommentMutation.isPending &&
-                              deleteCommentMutation.variables === comment.id
-                            ) {
-                              return
-                            }
-
-                            deleteCommentMutation.mutate(comment.id)
-                          }}
-                          className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground transition-colors hover:text-red-600"
-                        >
-                          <Trash2 size={14} />
-                          <span>Xóa</span>
-                        </button>
-                      )}
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setReplyingTo({
-                            id: comment.id,
-                            username: comment.author.username,
-                          })
-                          setReplyDraft("")
-                        }}
-                        className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
-                      >
-                        <Reply size={14} />
-                        <span>Reply</span>
-                      </button>
-                    </div>
-                  </div>
-                </div>
+              {topLevelComments.map((comment) => (
+                <CommentNode
+                  key={comment.id}
+                  comment={comment}
+                  repliesMap={repliesMap}
+                  me={me}
+                  language={language}
+                  t={t}
+                  toggleLikeMutation={toggleCommentLikeMutation}
+                  deleteCommentMutation={deleteCommentMutation}
+                  onReply={handleReply}
+                />
               ))}
             </div>
           )}
@@ -307,57 +396,22 @@ export function CommentThreadDialog({
               </button>
             </div>
           )}
-
-          {replyingTo && (
-            <div className="mt-4 rounded-2xl border border-border/70 bg-muted/20 px-3 py-3">
-              <p className="mb-2 text-xs text-muted-foreground">
-                Replying to @{replyingTo.username}
-              </p>
-              <div className="flex items-center gap-2">
-                <input
-                  value={replyDraft}
-                  onChange={(event) => setReplyDraft(event.target.value)}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter" && !event.shiftKey) {
-                      event.preventDefault()
-                      if (!replyDraft.trim() || replyMutation.isPending) {
-                        return
-                      }
-                      replyMutation.mutate({ parentId: replyingTo.id, content: replyDraft.trim() })
-                    }
-                  }}
-                  placeholder={t("feed.comments.placeholder")}
-                  className="h-9 flex-1 rounded-full border border-border bg-background px-4 text-sm outline-none focus:ring-2 focus:ring-ring"
-                />
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (!replyDraft.trim() || replyMutation.isPending) {
-                      return
-                    }
-                    replyMutation.mutate({ parentId: replyingTo.id, content: replyDraft.trim() })
-                  }}
-                  disabled={!replyDraft.trim() || replyMutation.isPending}
-                  className="h-9 rounded-full border-2 border-border bg-card px-4 text-xs font-semibold hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {replyMutation.isPending ? t("feed.comments.sending") : t("feed.comments.send")}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setReplyingTo(null)
-                    setReplyDraft("")
-                  }}
-                  className="h-9 rounded-full border border-border px-3 text-xs font-semibold text-muted-foreground hover:bg-muted/50"
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
-          )}
         </div>
 
         <div className="border-t border-border/50 px-5 py-4">
+          {replyingTo && (
+            <div className="mb-2 flex items-center justify-between rounded-lg bg-muted/50 px-3 py-1.5">
+              <p className="text-xs text-muted-foreground">
+                Replying to <span className="font-semibold text-foreground">@{replyingTo.username}</span>
+              </p>
+              <button 
+                onClick={() => setReplyingTo(null)}
+                className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground hover:text-foreground"
+              >
+                Cancel
+              </button>
+            </div>
+          )}
           <div className="flex items-center gap-2">
             <Avatar className="h-9 w-9 border border-border">
               <AvatarImage src={me?.avatar || me?.imageUrl || undefined} />
@@ -369,18 +423,18 @@ export function CommentThreadDialog({
               onKeyDown={(event) => {
                 if (event.key === "Enter" && !event.shiftKey) {
                   event.preventDefault()
-                  onSubmit()
+                  handleInternalSubmit()
                 }
               }}
-              placeholder={t("feed.comments.placeholder")}
+              placeholder={replyingTo ? `Reply to @${replyingTo.username}...` : t("feed.comments.placeholder")}
               className="h-10 flex-1 rounded-full border border-border bg-background px-4 text-sm outline-none focus:ring-2 focus:ring-ring"
             />
             <button
-              onClick={onSubmit}
-              disabled={isSubmitting || !draft.trim()}
+              onClick={handleInternalSubmit}
+              disabled={isSubmitting || createCommentMutation.isPending || !draft.trim()}
               className="h-10 rounded-full border-2 border-border bg-card px-5 text-sm font-semibold hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {isSubmitting ? t("feed.comments.sending") : t("feed.comments.send")}
+              {isSubmitting || createCommentMutation.isPending ? t("feed.comments.sending") : t("feed.comments.send")}
             </button>
           </div>
         </div>

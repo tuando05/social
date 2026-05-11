@@ -2,11 +2,11 @@ import { useCallback, useMemo, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
-import { ArrowLeft, Loader2 } from "lucide-react"
+import { ArrowLeft, Loader2, Calendar, Github, Twitter, Facebook, Instagram, Globe } from "lucide-react"
 import { useApi } from "@/hooks/useApi"
 import { useI18n } from "@/contexts/I18nContext"
 import { formatRelativeTime } from "@/lib/time"
-import type { PaginatedResponse, Post, User } from "@/types/api"
+import type { PaginatedResponse, Post, ProfileLink, User } from "@/types/api"
 import { PostCard } from "@/components/feed/PostCard"
 import { CommentThreadDialog } from "@/components/feed/CommentThreadDialog"
 import { useCurrentUserProfile } from "@/hooks/useCurrentUserProfile"
@@ -22,6 +22,15 @@ type ProfilePreviewResponse = User & {
 
 type SearchUsersResponse = {
   users: (User & { isFollowing?: boolean })[]
+}
+
+const getLinkIcon = (url: string) => {
+  const lowUrl = url.toLowerCase()
+  if (lowUrl.includes("github.com")) return <Github size={14} />
+  if (lowUrl.includes("twitter.com") || lowUrl.includes("x.com")) return <Twitter size={14} />
+  if (lowUrl.includes("facebook.com")) return <Facebook size={14} />
+  if (lowUrl.includes("instagram.com")) return <Instagram size={14} />
+  return <Globe size={14} />
 }
 
 export function UserProfilePage({ username, onBack }: UserProfilePageProps) {
@@ -321,6 +330,20 @@ export function UserProfilePage({ username, onBack }: UserProfilePageProps) {
       createCommentMutation.variables?.postId === activeCommentPostId
   )
 
+  const joinedDate = useMemo(() => {
+    if (!profile?.createdAt) return null
+    const date = new Date(profile.createdAt)
+    return date.toLocaleDateString(language === "vi" ? "vi-VN" : "en-US", {
+      month: "long",
+      year: "numeric",
+    })
+  }, [profile?.createdAt, language])
+
+  const profileLinks = useMemo(() => {
+    if (!profile) return []
+    return (profile.links || profile.profileLinks || []) as ProfileLink[]
+  }, [profile])
+
   if (isProfileLoading) {
     return (
       <div className="flex items-center justify-center py-10 text-muted-foreground">
@@ -357,28 +380,70 @@ export function UserProfilePage({ username, onBack }: UserProfilePageProps) {
           <div>
             <h2 className="text-xl font-bold leading-tight">{displayName}</h2>
             <p className="text-sm text-muted-foreground">@{profile.username}</p>
-            {profile.bio ? <p className="mt-3 text-sm text-foreground/90 whitespace-pre-wrap">{profile.bio}</p> : null}
-            <p className="mt-3 text-sm text-muted-foreground">
-              {followerCount.toLocaleString()} {t("profile.followers")} · {followingCount.toLocaleString()} {t("profile.following")}
-            </p>
           </div>
-          <Avatar className="w-16 h-16 border-2 border-border shrink-0">
+          <Avatar className="w-16 h-16 border-2 border-border shadow-sm">
             <AvatarImage src={profile.avatar || profile.imageUrl || undefined} />
-            <AvatarFallback>{displayName[0] || "U"}</AvatarFallback>
+            <AvatarFallback className="text-xl font-bold">{displayName[0]}</AvatarFallback>
           </Avatar>
         </div>
 
-        <div className="mt-4 flex items-center gap-2">
-          <Button
-            size="sm"
-            variant={isFollowing ? "outline" : "default"}
-            className="rounded-full px-4"
-            onClick={() => followMutation.mutate(!isFollowing)}
-            disabled={followMutation.isPending || isOwnProfile}
-          >
-            {isFollowing ? t("search.following") : t("search.follow")}
-          </Button>
+        {profile.bio && (
+          <p className="mt-3 text-sm leading-relaxed whitespace-pre-line text-foreground/90">
+            {profile.bio}
+          </p>
+        )}
+
+        {profileLinks.length > 0 && (
+          <div className="flex flex-wrap gap-x-4 gap-y-2 mt-3">
+            {profileLinks.map((link) => (
+              <a
+                key={link.id}
+                href={link.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors group"
+              >
+                <span className="text-muted-foreground group-hover:text-primary transition-colors">
+                  {getLinkIcon(link.url)}
+                </span>
+                <span className="group-hover:underline">{link.label}</span>
+              </a>
+            ))}
+          </div>
+        )}
+
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mt-4 text-sm text-muted-foreground">
+          {joinedDate && (
+            <div className="flex items-center gap-1">
+              <Calendar size={14} />
+              <span>{t("profile.joined", { date: joinedDate }) || `Joined ${joinedDate}`}</span>
+            </div>
+          )}
+          
+          <div className="flex items-center gap-1">
+            <span className="font-bold text-foreground">{followerCount.toLocaleString()}</span>{" "}
+            <span>{t("profile.followers")}</span>
+          </div>
+          
+          <div className="flex items-center gap-1">
+            <span className="font-bold text-foreground">{followingCount}</span>{" "}
+            <span>{t("profile.following")}</span>
+          </div>
         </div>
+
+        {!isOwnProfile && (
+          <div className="mt-4">
+            <Button
+              size="sm"
+              variant={isFollowing ? "outline" : "default"}
+              className="rounded-full px-8 h-9 font-semibold"
+              onClick={() => followMutation.mutate(!isFollowing)}
+              disabled={followMutation.isPending}
+            >
+              {isFollowing ? t("search.following") : t("search.follow")}
+            </Button>
+          </div>
+        )}
       </div>
 
       <div className="flex flex-col">

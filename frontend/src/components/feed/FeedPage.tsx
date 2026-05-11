@@ -426,6 +426,18 @@ export function FeedPage({ onOpenPost, activeFilter, focusedPostId, onFocusedPos
                   }
                   deletePostMutation.mutate(post.id)
                 }}
+                canEdit={Boolean(me?.id && post.authorId === me.id)}
+                onEdit={() => {
+                  window.dispatchEvent(new CustomEvent("app:edit-post", {
+                    detail: {
+                      post: {
+                        id: post.id,
+                        content: post.content,
+                        imageUrls: post.imageUrls
+                      }
+                    }
+                  }))
+                }}
               />
             </div>
           )
@@ -476,6 +488,18 @@ export function FeedPage({ onOpenPost, activeFilter, focusedPostId, onFocusedPos
                   return
                 }
                 deletePostMutation.mutate(focusedPostToRender.id)
+              }}
+              canEdit={Boolean(me?.id && focusedPostToRender.authorId === me.id)}
+              onEdit={() => {
+                window.dispatchEvent(new CustomEvent("app:edit-post", {
+                  detail: {
+                    post: {
+                      id: focusedPostToRender.id,
+                      content: focusedPostToRender.content,
+                      imageUrls: focusedPostToRender.imageUrls
+                    }
+                  }
+                }))
               }}
             />
           </div>

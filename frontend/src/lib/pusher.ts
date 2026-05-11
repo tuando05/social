@@ -45,6 +45,6 @@ export const createPusherClient = (getToken: () => Promise<string | null>) => {
           callback(error, null);
         }
       },
-    },
+    } as any,
   });
 };

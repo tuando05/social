@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState, ReactNode } from "react";
+import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { useAuth, useUser } from "@clerk/clerk-react";
 import Pusher from "pusher-js";
 import { createPusherClient } from "../lib/pusher";
