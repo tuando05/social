@@ -44,6 +44,10 @@ app.use("/api/search", searchRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/pusher", pusherRoutes);
 
+app.get("/", (_req: Request, res: Response) => {
+  res.json({ message: "Social Media API is running", version: "1.0.0" });
+});
+
 app.get("/api/health", (_req: Request, res: Response) => {
   res.json({ status: "ok" });
 });
