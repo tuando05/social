@@ -19,7 +19,7 @@ import { formatRelativeTime } from "@/lib/time"
 import { useUploadThing } from "@/lib/uploadthing"
 import { PostCard } from "@/components/feed/PostCard"
 import { CommentThreadDialog } from "@/components/feed/CommentThreadDialog"
-import { ImagePlus, Loader2, Pencil, Plus, Trash2, Calendar, Github, Twitter, Facebook, Instagram, Globe } from "lucide-react"
+import { ImagePlus, Loader2, Pencil, Plus, Trash2, Github, Twitter, Facebook, Instagram, Globe } from "lucide-react"
 
 type ProfileTab = "posts" | "replies" | "reposts"
 
@@ -643,15 +643,6 @@ export function ProfilePage() {
     })
   }
 
-  const joinedDate = useMemo(() => {
-    if (!me?.createdAt) return null
-    const date = new Date(me.createdAt)
-    return date.toLocaleDateString(language === "vi" ? "vi-VN" : "en-US", {
-      month: "long",
-      year: "numeric",
-    })
-  }, [me?.createdAt, language])
-
   if (isLoading) {
     return (
       <div className="flex flex-col w-full p-8">
@@ -719,13 +710,6 @@ export function ProfilePage() {
         )}
 
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mb-4 text-sm text-muted-foreground">
-          {joinedDate && (
-            <div className="flex items-center gap-1">
-              <Calendar size={14} />
-              <span>{t("profile.joined", { date: joinedDate }) || `Joined ${joinedDate}`}</span>
-            </div>
-          )}
-          
           <button
             type="button"
             className="flex items-center gap-1 transition-opacity hover:opacity-80"
