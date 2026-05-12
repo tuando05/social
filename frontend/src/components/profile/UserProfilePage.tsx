@@ -2,7 +2,7 @@ import { useCallback, useMemo, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
-import { ArrowLeft, Loader2, Calendar, Github, Twitter, Facebook, Instagram, Globe } from "lucide-react"
+import { ArrowLeft, Loader2, Github, Twitter, Facebook, Instagram, Globe } from "lucide-react"
 import { useApi } from "@/hooks/useApi"
 import { useI18n } from "@/contexts/I18nContext"
 import { formatRelativeTime } from "@/lib/time"
@@ -332,15 +332,6 @@ export function UserProfilePage({ username, onBack }: UserProfilePageProps) {
       createCommentMutation.variables?.postId === activeCommentPostId
   )
 
-  const joinedDate = useMemo(() => {
-    if (!profile?.createdAt) return null
-    const date = new Date(profile.createdAt)
-    return date.toLocaleDateString(language === "vi" ? "vi-VN" : "en-US", {
-      month: "long",
-      year: "numeric",
-    })
-  }, [profile?.createdAt, language])
-
   const profileLinks = useMemo(() => {
     if (!profile) return []
     return (profile.links || profile.profileLinks || []) as ProfileLink[]
@@ -415,13 +406,6 @@ export function UserProfilePage({ username, onBack }: UserProfilePageProps) {
         )}
 
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mt-4 text-sm text-muted-foreground">
-          {joinedDate && (
-            <div className="flex items-center gap-1">
-              <Calendar size={14} />
-              <span>{t("profile.joined", { date: joinedDate }) || `Joined ${joinedDate}`}</span>
-            </div>
-          )}
-          
           <div className="flex items-center gap-1">
             <span className="font-bold text-foreground">{followerCount.toLocaleString()}</span>{" "}
             <span>{t("profile.followers")}</span>
