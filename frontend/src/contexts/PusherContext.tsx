@@ -48,7 +48,7 @@ export const PusherProvider = ({ children }: { children: ReactNode }) => {
 
     // No cleanup here to keep the connection alive across the app
     // We only disconnect when the user logs out (handled by the if above)
-  }, [isLoaded, isSignedIn, user?.id]);
+  }, [isLoaded, isSignedIn, user?.id, getToken]);
 
   return (
     <PusherContext.Provider value={{ pusher }}>

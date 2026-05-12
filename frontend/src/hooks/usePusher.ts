@@ -36,8 +36,6 @@ export function usePusherEvent<T>(
     return () => {
       console.log(`📴 [usePusherEvent] Cleaning up: ${channelName} -> ${eventName}`);
       channel.unbind(eventName, handler);
-      // We don't unsubscribe here because other components might be listening to the same channel.
-      // Pusher handles its own connection/subscription state effectively.
     };
   }, [pusher, channelName, eventName]);
 }

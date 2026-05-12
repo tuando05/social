@@ -275,18 +275,21 @@ export function ProfilePage() {
     queryKey: ["posts", "user", me?.id],
     queryFn: () => apiFetch(`/api/posts/user/${me?.id}?limit=20`),
     enabled: Boolean(me?.id),
+    staleTime: 60 * 1000,
   })
 
   const { data: repliesPage, isLoading: isRepliesLoading } = useQuery<PaginatedResponse<Comment>>({
     queryKey: ["comments", "user", me?.id],
     queryFn: () => apiFetch(`/api/comments/user/${me?.id}?limit=20`),
     enabled: Boolean(me?.id && activeTab === "replies"),
+    staleTime: 60 * 1000,
   })
 
   const { data: repostPage, isLoading: isRepostsLoading } = useQuery<PaginatedResponse<RepostPost>>({
     queryKey: ["posts", "reposts", me?.id],
     queryFn: () => apiFetch(`/api/posts/user/${me?.id}/reposts?limit=20`),
     enabled: Boolean(me?.id && activeTab === "reposts"),
+    staleTime: 60 * 1000,
   })
 
   const tabs = useMemo<{ key: ProfileTab; label: string }[]>(

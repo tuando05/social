@@ -148,6 +148,7 @@ export function FeedPage({ onOpenPost, activeFilter, focusedPostId, onFocusedPos
     getNextPageParam: (lastPage) => {
       return lastPage.nextCursor || undefined
     },
+    staleTime: 60 * 1000,
   })
 
   const focusedPostQuery = useQuery<Post>({
