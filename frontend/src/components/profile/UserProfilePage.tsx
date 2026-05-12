@@ -118,6 +118,7 @@ export function UserProfilePage({ username, onBack }: UserProfilePageProps) {
     queryKey: ["users", "preview", username],
     queryFn: () => apiFetch(`/api/users/u/${encodeURIComponent(username)}`),
     enabled: Boolean(username),
+    staleTime: 60 * 1000,
   })
 
   const {
@@ -128,6 +129,7 @@ export function UserProfilePage({ username, onBack }: UserProfilePageProps) {
     queryKey: ["posts", "user", profile?.id],
     queryFn: () => apiFetch(`/api/posts/user/${profile?.id}?limit=20`),
     enabled: Boolean(profile?.id),
+    staleTime: 60 * 1000,
   })
 
   const followMutation = useMutation({

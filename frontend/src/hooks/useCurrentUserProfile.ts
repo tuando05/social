@@ -8,5 +8,6 @@ export function useCurrentUserProfile() {
   return useQuery<User>({
     queryKey: ["users", "me"],
     queryFn: () => apiFetch("/api/users/me"),
+    staleTime: 5 * 60 * 1000,
   })
 }
